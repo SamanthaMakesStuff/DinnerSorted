@@ -1,21 +1,45 @@
 "use client";
 
 import Link from "next/link";
+import { useState } from "react";
 import { useStore } from "@/lib/store";
 import { resolvePlanMeal } from "@/lib/generation";
-import { DAY_LABELS } from "@/lib/types";
+import { DAY_LABELS, MAX_PLAN_HISTORY, type WeekPlan } from "@/lib/types";
+import { makeId } from "@/lib/defaults";
 import { EmergencyMeals } from "@/components/EmergencyMeals";
 
 export default function HomePage() {
-  const { data, ready } = useStore();
+  const { data, update, ready } = useStore();
+  const [status, setStatus] = useState("");
 
   if (!ready) {
     return <p aria-live="polite">Loading your data…</p>;
   }
 
   const plan = data.planHistory[0] ?? null;
+  const lastWeek = data.planHistory[1] ?? null;
   const hasPrefs =
     data.safeMeals.length > 0 || data.preferences.allergens.length > 0;
+
+  function repeatLastWeek() {
+    if (!lastWeek) return;
+    const clone: WeekPlan = {
+      ...lastWeek,
+      id: makeId("plan"),
+      createdAt: new Date().toISOString(),
+      label: `Week of ${new Date().toLocaleDateString("en-GB", {
+        day: "numeric",
+        month: "short",
+        year: "numeric",
+      })} (repeat of ${lastWeek.label})`,
+      slots: lastWeek.slots.map((s) => ({ ...s })),
+    };
+    update((d) => ({
+      ...d,
+      planHistory: [clone, ...d.planHistory].slice(0, MAX_PLAN_HISTORY),
+    }));
+    setStatus("Done — last week's plan is now this week's plan too.");
+  }
 
   return (
     <>
@@ -98,6 +122,13 @@ export default function HomePage() {
               );
             })}
           </ul>
+          <p
+            aria-live="polite"
+            role="status"
+            className={status ? "notice info" : "visually-hidden"}
+          >
+            {status}
+          </p>
           <div className="button-row">
             <Link className="button" href="/plan">
               Change this week&rsquo;s plan
@@ -105,6 +136,11 @@ export default function HomePage() {
             <Link className="button secondary" href="/shopping-list">
               View shopping list
             </Link>
+            {lastWeek && (
+              <button type="button" className="secondary" onClick={repeatLastWeek}>
+                Repeat last week
+              </button>
+            )}
           </div>
         </>
       )}

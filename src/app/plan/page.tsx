@@ -9,7 +9,7 @@ import {
   reasonLabel,
   resolvePlanMeal,
 } from "@/lib/generation";
-import { DAY_LABELS } from "@/lib/types";
+import { DAY_LABELS, MAX_PLAN_HISTORY } from "@/lib/types";
 import { EmergencyMeals } from "@/components/EmergencyMeals";
 
 export default function PlanPage() {
@@ -31,9 +31,10 @@ export default function PlanPage() {
     });
     update((d) => ({
       ...d,
-      planHistory: opts.replace
+      planHistory: (opts.replace
         ? [result.plan, ...d.planHistory.slice(1)]
-        : [result.plan, ...d.planHistory],
+        : [result.plan, ...d.planHistory]
+      ).slice(0, MAX_PLAN_HISTORY),
     }));
     setStatus(
       result.warnings.length > 0

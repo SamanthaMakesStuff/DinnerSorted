@@ -268,6 +268,9 @@ export interface ReminderSettings {
   respectLowAppetiteWindows: boolean;
 }
 
+/** Bound on stored history (a year of weeks) so the document stays small. */
+export const MAX_PLAN_HISTORY = 52;
+
 export interface UserData {
   version: 1;
   preferences: Preferences;

@@ -1,19 +1,22 @@
 /**
- * Session lookup used by the app shell.
- * P0: accounts don't exist yet, so everyone is a guest and accounts are
- * reported unavailable. Replaced with a real Auth.js lookup in P1 — keeping
- * the call-sites stable either way.
+ * Session lookup used by the app shell and API routes.
+ * Accounts are available only when both DATABASE_URL and AUTH_SECRET are
+ * configured; otherwise the app runs happily in guest (export/import) mode.
  */
+import { auth } from "./auth";
+
 export interface SessionUser {
   id: string;
   email: string;
 }
 
-export async function getSessionUser(): Promise<SessionUser | null> {
-  return null;
+export function accountsEnabled(): boolean {
+  return Boolean(process.env.DATABASE_URL && process.env.AUTH_SECRET);
 }
 
-/** Whether the accounts system is available on this deployment. */
-export function accountsEnabled(): boolean {
-  return false;
+export async function getSessionUser(): Promise<SessionUser | null> {
+  if (!accountsEnabled()) return null;
+  const session = await auth();
+  if (!session?.user?.id || !session.user.email) return null;
+  return { id: session.user.id, email: session.user.email };
 }
