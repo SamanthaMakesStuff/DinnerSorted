@@ -99,8 +99,8 @@ export default function ShoppingListPage() {
 
       {list.groups.length === 0 && (
         <p>
-          Nothing to buy — your chosen meals have no ingredients listed (or
-          they&rsquo;re all coming from the freezer).
+          Nothing to buy — no meals are picked for this week (or they&rsquo;re
+          all coming from the freezer).
         </p>
       )}
 

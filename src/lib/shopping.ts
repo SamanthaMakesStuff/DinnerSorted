@@ -41,6 +41,32 @@ export function buildShoppingList(data: UserData, plan: WeekPlan): ShoppingList 
       continue;
     }
 
+    // A safe meal with no itemised ingredients still needs buying — list the
+    // meal itself so every planned food shows up on the shopping list.
+    if (meal.ingredients.length === 0) {
+      const key = `meal::${meal.name.trim().toLowerCase()}`;
+      const qty = `1 meal (${DAY_LABELS[slot.day]})`;
+      const cost =
+        meal.estCost == null ? null : meal.estCost * householdMultiplier;
+      const existing = lines.get(key);
+      if (existing) {
+        existing.quantities.push(qty);
+        if (existing.estCost != null) {
+          if (cost == null) existing.estCost = null;
+          else existing.estCost += cost;
+        }
+      } else {
+        lines.set(key, {
+          key,
+          name: meal.name.trim(),
+          category: "Other",
+          quantities: [qty],
+          estCost: cost,
+        });
+      }
+      continue;
+    }
+
     for (const ing of meal.ingredients) {
       const key = `${ing.category}::${ing.name.trim().toLowerCase()}`;
       const qty = ing.quantity
