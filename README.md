@@ -56,26 +56,33 @@ ever shuffled unless you press "Surprise me".
 - **Account deletion** with an export-everything-first flow.
 - First sign-in adopts any guest-session data automatically.
 
-### P2 — Not built (stopped intentionally)
+### P2 — Enhancements (partial, by owner decision)
 
-Work was intentionally stopped after P1 at the project owner's request. The
-P2 tier from the spec — supermarket basket deep-links, freezer/batch-cook
-stock tracking, substitution suggestions, and meal-time reminders — is not
-implemented. Two things worth knowing for when P2 is picked up:
+Implemented:
 
-- **The data model is already P2-ready**: `freezer` stock and `reminders`
-  settings exist in the stored document and export format, and the plan
-  generator already understands freezer-stock options — so building the P2
-  UI won't require a data migration.
-- **⚠ Reminders cannot be fully server-scheduled on Vercel Hobby.** Hobby
-  cron jobs run **at most once per day**, and only within the scheduled
-  hour — so same-day, multiple-times-a-day meal reminders are **not
-  achievable with Vercel cron on this tier**. When P2 is built, the honest
-  options are: (a) a single daily digest via cron, (b) client-side
-  notifications scheduled while the app is open (works today, no server
-  needed), or (c) move to Vercel Pro for finer-grained cron. This is a scope
-  decision to make at that point — it is flagged here rather than worked
-  around silently.
+- **Supermarket deep-links** on the shopping list: every item links straight
+  to the product search of the user's chosen supermarkets (Tesco,
+  Sainsbury's, Asda, Morrisons, Aldi, Lidl, Waitrose, Co-op, Iceland, Ocado,
+  Cook), primary shop first. *Honest scope note:* UK supermarkets don't
+  offer public "add to basket" APIs, so a true one-click basket export isn't
+  possible — this is one click per item to a pre-filled search, and the UI
+  says so rather than pretending otherwise.
+- **Substitution suggestions** when an item is unavailable: per-item swap
+  ideas filtered against the user's allergen list (medical *and* avoid
+  level) and their foods-to-avoid list. An unknown ingredient or a
+  fully-filtered list returns *no* suggestions — empty beats unsafe.
+
+Intentionally not included (project owner's decision):
+
+- **Freezer / batch-cook stock tracking** and **meal-time reminders** from
+  the spec's P2 list were explicitly descoped. The stored data model keeps
+  the `freezer` and `reminders` fields (and the plan generator already
+  understands freezer stock), so adding them later needs no data migration.
+- **⚠ If reminders are ever added:** they cannot be fully server-scheduled
+  on Vercel Hobby — Hobby cron runs **at most once per day**, within the
+  scheduled hour, so same-day meal-time reminders would need (a) a single
+  daily digest, (b) client-side notifications while the app is open, or
+  (c) Vercel Pro. Flagged here so it's a conscious decision at that point.
 
 ## Accessibility
 

@@ -490,6 +490,23 @@ summary {
   padding: 0.2rem 0;
 }
 
+/* Shopping-list per-item tools (search links + swaps) */
+.item-tools {
+  margin: 0.25rem 0 0.75rem 2rem;
+  padding: 0.35rem 0.85rem;
+  font-size: 0.95rem;
+}
+.item-tools summary { font-weight: 500; }
+.link-row {
+  list-style: none;
+  padding: 0;
+  margin: 0.25rem 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 1.25rem;
+}
+.link-row li { margin: 0.15rem 0; }
+
 /* Display-settings bar */
 .display-settings {
   display: flex;

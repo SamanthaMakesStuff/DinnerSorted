@@ -4,6 +4,8 @@ import Link from "next/link";
 import { useState } from "react";
 import { useStore } from "@/lib/store";
 import { buildShoppingList, shoppingListAsText } from "@/lib/shopping";
+import { suggestSubstitutes } from "@/lib/substitutions";
+import { linksFor, SUPERMARKET_LINKS } from "@/lib/supermarkets";
 
 export default function ShoppingListPage() {
   const { data, ready } = useStore();
@@ -31,6 +33,13 @@ export default function ShoppingListPage() {
 
   const list = buildShoppingList(data, plan);
   const text = shoppingListAsText(list, plan.label);
+  const prefs = data.preferences;
+  // Search links for the user's chosen supermarkets (primary first);
+  // fall back to all known shops if none are picked yet.
+  const shopLinks =
+    prefs.shopping.supermarkets.length > 0
+      ? linksFor(prefs.shopping.supermarkets, prefs.shopping.primarySupermarket)
+      : SUPERMARKET_LINKS;
 
   function toggle(key: string) {
     setTicked((prev) => {
@@ -70,6 +79,11 @@ export default function ShoppingListPage() {
         {plan.label} · grouped by shop section · built from your chosen meal
         for each day.
       </p>
+      <p className="muted" style={{ maxWidth: "65ch" }}>
+        Each item has links that open your supermarket&rsquo;s search for it —
+        UK supermarkets don&rsquo;t allow apps to fill a basket directly, so
+        it&rsquo;s one click per item rather than fully automatic.
+      </p>
 
       <div className="button-row">
         <button type="button" className="secondary" onClick={copyText}>
@@ -94,28 +108,80 @@ export default function ShoppingListPage() {
         <section key={group.category} className="shop-group" aria-labelledby={`grp-${group.category}`}>
           <h2 id={`grp-${group.category}`}>{group.category}</h2>
           <ul>
-            {group.lines.map((line) => (
-              <li key={line.key}>
-                <div className="shop-line">
-                  <input
-                    type="checkbox"
-                    id={`item-${line.key}`}
-                    checked={ticked.has(line.key)}
-                    onChange={() => toggle(line.key)}
-                  />
-                  <label
-                    htmlFor={`item-${line.key}`}
-                    className={ticked.has(line.key) ? "ticked" : undefined}
-                  >
-                    <strong>{line.name}</strong>
-                    {line.estCost != null && ` — about £${line.estCost.toFixed(2)}`}
-                    <span className="label-hint">
-                      {line.quantities.join("; ")}
-                    </span>
-                  </label>
-                </div>
-              </li>
-            ))}
+            {group.lines.map((line) => {
+              const swaps = suggestSubstitutes(line.name, prefs);
+              return (
+                <li key={line.key}>
+                  <div className="shop-line">
+                    <input
+                      type="checkbox"
+                      id={`item-${line.key}`}
+                      checked={ticked.has(line.key)}
+                      onChange={() => toggle(line.key)}
+                    />
+                    <label
+                      htmlFor={`item-${line.key}`}
+                      className={ticked.has(line.key) ? "ticked" : undefined}
+                    >
+                      <strong>{line.name}</strong>
+                      {line.estCost != null && ` — about £${line.estCost.toFixed(2)}`}
+                      <span className="label-hint">
+                        {line.quantities.join("; ")}
+                      </span>
+                    </label>
+                  </div>
+                  <details className="item-tools">
+                    <summary>
+                      Find {line.name} online, or swap it
+                    </summary>
+                    <p style={{ margin: "0.5rem 0 0.25rem" }}>
+                      <strong>Search at your supermarket:</strong>
+                    </p>
+                    <ul className="link-row">
+                      {shopLinks.map((shop) => (
+                        <li key={shop.name}>
+                          <a
+                            href={shop.searchUrl(line.name)}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                          >
+                            {line.name} at {shop.name}
+                            <span className="visually-hidden">
+                              {" "}
+                              (opens in a new tab)
+                            </span>
+                          </a>
+                          {shop.note && (
+                            <span className="label-hint">{shop.note}</span>
+                          )}
+                        </li>
+                      ))}
+                    </ul>
+                    {swaps.length > 0 ? (
+                      <>
+                        <p style={{ margin: "0.75rem 0 0.25rem" }}>
+                          <strong>If it&rsquo;s unavailable, these usually work:</strong>
+                          <span className="label-hint">
+                            Already filtered for your allergies and avoid-list.
+                          </span>
+                        </p>
+                        <ul>
+                          {swaps.map((s) => (
+                            <li key={s}>{s}</li>
+                          ))}
+                        </ul>
+                      </>
+                    ) : (
+                      <p className="muted" style={{ margin: "0.75rem 0 0.25rem" }}>
+                        No safe swap suggestions for this item — if it&rsquo;s
+                        unavailable, the meal that needs it may be one to skip
+                        this week.
+                      </p>
+                    )}
+                  </details>
+                </li>
+              );
+            })}
           </ul>
         </section>
       ))}
