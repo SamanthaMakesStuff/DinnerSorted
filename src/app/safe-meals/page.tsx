@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useRef, useState } from "react";
 import { useStore } from "@/lib/store";
 import { MealForm, emptyMeal } from "@/components/MealForm";
@@ -162,6 +163,9 @@ export default function SafeMealsPage() {
           >
             Add a safe meal
           </button>
+          <Link className="button secondary" href="/safe-meals/receipt">
+            Add from a receipt
+          </Link>
         </div>
       )}
 

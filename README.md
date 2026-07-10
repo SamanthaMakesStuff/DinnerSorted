@@ -72,6 +72,18 @@ Implemented:
   level) and their foods-to-avoid list. An unknown ingredient or a
   fully-filtered list returns *no* suggestions — empty beats unsafe.
 
+Added beyond the spec (owner request):
+
+- **Receipt import** (`/safe-meals/receipt`): paste an online-shopping
+  receipt, or upload a screenshot or PDF of one, then tick items to add to
+  the safe-foods list. Prices, quantities, totals, payment and loyalty
+  lines are stripped; recognisably non-food items (cleaning products,
+  toiletries, pet food, carrier bags…) are set aside **visibly, with a
+  reason and a "this is food" rescue button** — never silently deleted.
+  All reading happens on-device: pasted text is parsed in the page,
+  screenshots are OCR'd with a self-hosted tesseract.js (no CDN), and PDFs
+  are read with pdf.js. Receipts are never uploaded or stored anywhere.
+
 Intentionally not included (project owner's decision):
 
 - **Freezer / batch-cook stock tracking** and **meal-time reminders** from
