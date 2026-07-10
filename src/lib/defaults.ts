@@ -5,6 +5,7 @@ export function defaultPreferences(): Preferences {
     allergens: [],
     dietType: "omnivore",
     dietTypeOther: "",
+    religiousDiet: [],
     avoidFoods: [],
     sensory: {
       textureAvoid: [],

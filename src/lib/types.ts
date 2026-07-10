@@ -69,6 +69,18 @@ export const DIET_TYPES = [
 ] as const;
 export type DietType = (typeof DIET_TYPES)[number];
 
+/**
+ * Religious/cultural dietary needs common in the UK. Kept separate from diet
+ * type because they combine (e.g. Halal + omnivore). Free-text entries are
+ * also allowed alongside these.
+ */
+export const RELIGIOUS_DIET_OPTIONS = [
+  "Halal",
+  "Kosher",
+  "No beef (e.g. Hindu)",
+  "No pork",
+] as const;
+
 export type EnergyLevel = "low" | "medium" | "high";
 export const ENERGY_LEVELS: EnergyLevel[] = ["low", "medium", "high"];
 
@@ -143,6 +155,8 @@ export interface Preferences {
   allergens: AllergenEntry[];
   dietType: DietType;
   dietTypeOther: string;
+  /** Religious/cultural dietary needs — standard options plus free text. */
+  religiousDiet: string[];
   /** Preference-level dislikes (NOT medical) — tags/free text. */
   avoidFoods: string[];
   sensory: SensoryPreferences;

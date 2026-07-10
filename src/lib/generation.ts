@@ -25,7 +25,11 @@ import type {
 } from "./types";
 import { DAYS, DAY_LABELS } from "./types";
 import { makeId } from "./defaults";
-import { STARTER_MEALS, starterMealFitsDiet } from "./starter-meals";
+import {
+  STARTER_MEALS,
+  starterMealFitsDiet,
+  starterMealFitsReligiousDiet,
+} from "./starter-meals";
 
 export type ExclusionReason =
   | { kind: "medical-allergy"; allergen: string }
@@ -254,7 +258,10 @@ export function generateWeekPlan(
   if (prefs.newFoodsOptIn && prefs.rotation === "mostly-safe") {
     const ownNames = new Set(data.safeMeals.map((m) => m.name.toLowerCase()));
     const candidates = STARTER_MEALS.filter(
-      (m) => !ownNames.has(m.name.toLowerCase()) && starterMealFitsDiet(m, prefs.dietType)
+      (m) =>
+        !ownNames.has(m.name.toLowerCase()) &&
+        starterMealFitsDiet(m, prefs.dietType) &&
+        starterMealFitsReligiousDiet(m, prefs.religiousDiet)
     ).map((m) => ({ ...m, id: `new_${m.name.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`, isNew: true }));
     const vetted = buildMealPool(prefs, candidates, {}).eligible.filter(
       // A brand-new food should never be a high-effort gamble.

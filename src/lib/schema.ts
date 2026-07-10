@@ -68,6 +68,8 @@ const preferences = z.object({
     .enum(["omnivore", "vegetarian", "vegan", "pescatarian", "other"])
     .default("omnivore"),
   dietTypeOther: z.string().max(200).default(""),
+  // default [] keeps older exports importable
+  religiousDiet: z.array(z.string().max(100)).default([]),
   avoidFoods: z.array(z.string().max(100)).default([]),
   sensory: z
     .object({

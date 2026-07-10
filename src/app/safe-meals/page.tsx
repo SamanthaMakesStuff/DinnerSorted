@@ -3,7 +3,11 @@
 import { useRef, useState } from "react";
 import { useStore } from "@/lib/store";
 import { MealForm, emptyMeal } from "@/components/MealForm";
-import { STARTER_MEALS, starterMealFitsDiet } from "@/lib/starter-meals";
+import {
+  STARTER_MEALS,
+  starterMealFitsDiet,
+  starterMealFitsReligiousDiet,
+} from "@/lib/starter-meals";
 import { makeId } from "@/lib/defaults";
 import { DAY_LABELS, type SafeMeal } from "@/lib/types";
 
@@ -57,7 +61,8 @@ export default function SafeMealsPage() {
   const quickAddOptions = STARTER_MEALS.filter(
     (m) =>
       !ownNames.has(m.name.toLowerCase()) &&
-      starterMealFitsDiet(m, data.preferences.dietType)
+      starterMealFitsDiet(m, data.preferences.dietType) &&
+      starterMealFitsReligiousDiet(m, data.preferences.religiousDiet)
   );
 
   return (

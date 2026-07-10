@@ -22,6 +22,7 @@ import {
   DAY_LABELS,
   DIET_TYPES,
   EQUIPMENT_OPTIONS,
+  RELIGIOUS_DIET_OPTIONS,
   ROTATION_LABELS,
   UK_ALLERGENS,
   UK_SUPERMARKETS,
@@ -252,6 +253,12 @@ function AllergiesStep({ prefs, setPrefs }: StepProps) {
 
 function DietStep({ prefs, setPrefs }: StepProps) {
   const otherId = useId();
+  const standardReligious = prefs.religiousDiet.filter((r) =>
+    RELIGIOUS_DIET_OPTIONS.includes(r as (typeof RELIGIOUS_DIET_OPTIONS)[number])
+  );
+  const customReligious = prefs.religiousDiet.filter(
+    (r) => !RELIGIOUS_DIET_OPTIONS.includes(r as (typeof RELIGIOUS_DIET_OPTIONS)[number])
+  );
   return (
     <>
       {DIET_TYPES.map((d) => (
@@ -277,6 +284,43 @@ function DietStep({ prefs, setPrefs }: StepProps) {
           />
         </div>
       )}
+
+      <h2 id="religious-heading" style={{ marginTop: "1.5rem" }}>
+        Religious or cultural dietary needs
+      </h2>
+      <p className="muted" style={{ marginTop: 0 }}>
+        Tick any that apply — they work alongside your diet type. New-food
+        suggestions and quick-add meals respect these; your own safe meals are
+        always yours and never filtered.
+      </p>
+      <div role="group" aria-labelledby="religious-heading">
+        {RELIGIOUS_DIET_OPTIONS.map((r) => (
+          <div className="check-row" key={r}>
+            <input
+              type="checkbox"
+              id={`rel-${r}`}
+              checked={standardReligious.includes(r)}
+              onChange={(e) =>
+                setPrefs({
+                  religiousDiet: e.target.checked
+                    ? [...prefs.religiousDiet, r]
+                    : prefs.religiousDiet.filter((x) => x !== r),
+                })
+              }
+            />
+            <label htmlFor={`rel-${r}`}>{r}</label>
+          </div>
+        ))}
+      </div>
+      <TagListInput
+        label="Any other religious or cultural needs"
+        hint="Optional free text, e.g. Jain (no root vegetables), Ital."
+        values={customReligious}
+        onChange={(custom) =>
+          setPrefs({ religiousDiet: [...standardReligious, ...custom] })
+        }
+        placeholder="e.g. Jain"
+      />
     </>
   );
 }
@@ -321,45 +365,30 @@ function TexturesStep({ prefs, setPrefs }: StepProps) {
   );
 }
 
-function PlateStep({ prefs, setPrefs }: StepProps) {
+function TemperatureStep({ prefs, setPrefs }: StepProps) {
   const tempId = useId();
   return (
-    <>
-      <div className="check-row">
-        <input
-          type="checkbox"
-          id="foods-touch"
-          checked={!prefs.sensory.foodsCanTouch}
-          onChange={(e) =>
-            setPrefs({
-              sensory: { ...prefs.sensory, foodsCanTouch: !e.target.checked },
-            })
-          }
-        />
-        <label htmlFor="foods-touch">Foods should not touch on the plate</label>
-      </div>
-      <div className="field" style={{ marginTop: "1rem" }}>
-        <label htmlFor={tempId}>Meal temperature preference</label>
-        <select
-          id={tempId}
-          value={prefs.sensory.temperature}
-          onChange={(e) =>
-            setPrefs({
-              sensory: {
-                ...prefs.sensory,
-                temperature: e.target.value as TemperaturePref,
-              },
-            })
-          }
-          style={{ maxWidth: "14rem" }}
-        >
-          <option value="any">No preference</option>
-          <option value="hot">Hot meals</option>
-          <option value="cold">Cold meals</option>
-          <option value="room">Room temperature</option>
-        </select>
-      </div>
-    </>
+    <div className="field">
+      <label htmlFor={tempId}>Meal temperature preference</label>
+      <select
+        id={tempId}
+        value={prefs.sensory.temperature}
+        onChange={(e) =>
+          setPrefs({
+            sensory: {
+              ...prefs.sensory,
+              temperature: e.target.value as TemperaturePref,
+            },
+          })
+        }
+        style={{ maxWidth: "14rem" }}
+      >
+        <option value="any">No preference</option>
+        <option value="hot">Hot meals</option>
+        <option value="cold">Cold meals</option>
+        <option value="room">Room temperature</option>
+      </select>
+    </div>
   );
 }
 
@@ -404,35 +433,80 @@ function SensesStep({ prefs, setPrefs }: StepProps) {
 }
 
 function EnergyStep({ prefs, setPrefs }: StepProps) {
+  const allId = useId();
+  const [announce, setAnnounce] = useState("");
+  const levels = Object.values(prefs.energyByDay);
+  const allSame = levels.every((l) => l === levels[0]);
+  const daysDiffer = !allSame;
+
+  function setAllDays(level: EnergyLevel) {
+    setPrefs({
+      energyByDay: {
+        monday: level,
+        tuesday: level,
+        wednesday: level,
+        thursday: level,
+        friday: level,
+        saturday: level,
+        sunday: level,
+      },
+    });
+    setAnnounce(`Every day set to ${level} energy.`);
+  }
+
   return (
     <>
       <p className="muted" style={{ marginTop: 0 }}>
         Meals are matched to each day separately — a low-energy day only gets
-        low-effort meals.
+        low-effort meals. One answer covers the whole week; only open the
+        day-by-day part if your week genuinely varies.
       </p>
-      <div className="grid-2">
-        {DAYS.map((day: Day) => (
-          <div className="field" key={day}>
-            <label htmlFor={`energy-${day}`}>{DAY_LABELS[day]}</label>
-            <select
-              id={`energy-${day}`}
-              value={prefs.energyByDay[day]}
-              onChange={(e) =>
-                setPrefs({
-                  energyByDay: {
-                    ...prefs.energyByDay,
-                    [day]: e.target.value as EnergyLevel,
-                  },
-                })
-              }
-            >
-              <option value="low">Low energy</option>
-              <option value="medium">Medium energy</option>
-              <option value="high">High energy</option>
-            </select>
-          </div>
-        ))}
+      <div className="field">
+        <label htmlFor={allId}>Set every day at once</label>
+        <select
+          id={allId}
+          value={allSame ? levels[0] : ""}
+          onChange={(e) => {
+            if (e.target.value) setAllDays(e.target.value as EnergyLevel);
+          }}
+          style={{ maxWidth: "16rem" }}
+        >
+          {!allSame && <option value="">Days are set individually…</option>}
+          <option value="low">Low energy every day</option>
+          <option value="medium">Medium energy every day</option>
+          <option value="high">High energy every day</option>
+        </select>
       </div>
+      <p aria-live="polite" className="visually-hidden">
+        {announce}
+      </p>
+
+      <details open={daysDiffer}>
+        <summary>Adjust individual days (optional)</summary>
+        <div className="grid-2" style={{ marginTop: "0.75rem" }}>
+          {DAYS.map((day: Day) => (
+            <div className="field" key={day}>
+              <label htmlFor={`energy-${day}`}>{DAY_LABELS[day]}</label>
+              <select
+                id={`energy-${day}`}
+                value={prefs.energyByDay[day]}
+                onChange={(e) =>
+                  setPrefs({
+                    energyByDay: {
+                      ...prefs.energyByDay,
+                      [day]: e.target.value as EnergyLevel,
+                    },
+                  })
+                }
+              >
+                <option value="low">Low energy</option>
+                <option value="medium">Medium energy</option>
+                <option value="high">High energy</option>
+              </select>
+            </div>
+          ))}
+        </div>
+      </details>
     </>
   );
 }
@@ -891,10 +965,15 @@ const STEPS: StepDef[] = [
     title: "What do you eat?",
     summaryLabel: "Diet type",
     Component: DietStep,
-    summaryValue: (p) =>
-      p.dietType === "other" && p.dietTypeOther
-        ? `Other — ${p.dietTypeOther}`
-        : DIET_LABELS[p.dietType],
+    summaryValue: (p) => {
+      const base =
+        p.dietType === "other" && p.dietTypeOther
+          ? `Other — ${p.dietTypeOther}`
+          : DIET_LABELS[p.dietType];
+      return p.religiousDiet.length
+        ? `${base} · ${p.religiousDiet.join(", ")}`
+        : base;
+    },
   },
   {
     slug: "avoid",
@@ -918,16 +997,17 @@ const STEPS: StepDef[] = [
     },
   },
   {
-    slug: "plate",
-    title: "On the plate: touching and temperature",
-    summaryLabel: "Plate & temperature",
-    Component: PlateStep,
+    slug: "temperature",
+    title: "What temperature do you like meals?",
+    summaryLabel: "Meal temperature",
+    Component: TemperatureStep,
     summaryValue: (p) =>
-      `${p.sensory.foodsCanTouch ? "Foods can touch" : "Foods must not touch"} · ${
-        { any: "Any temperature", hot: "Hot meals", cold: "Cold meals", room: "Room temperature" }[
-          p.sensory.temperature
-        ]
-      }`,
+      ({
+        any: "No preference",
+        hot: "Hot meals",
+        cold: "Cold meals",
+        room: "Room temperature",
+      })[p.sensory.temperature],
   },
   {
     slug: "senses",
@@ -948,8 +1028,12 @@ const STEPS: StepDef[] = [
     title: "How much energy do you usually have each day?",
     summaryLabel: "Energy by day",
     Component: EnergyStep,
-    summaryValue: (p) =>
-      DAYS.map((d) => `${DAY_LABELS[d].slice(0, 3)} ${p.energyByDay[d]}`).join(", "),
+    summaryValue: (p) => {
+      const levels = Object.values(p.energyByDay);
+      if (levels.every((l) => l === levels[0]))
+        return `${levels[0][0].toUpperCase()}${levels[0].slice(1)} energy every day`;
+      return DAYS.map((d) => `${DAY_LABELS[d].slice(0, 3)} ${p.energyByDay[d]}`).join(", ");
+    },
   },
   {
     slug: "complexity",

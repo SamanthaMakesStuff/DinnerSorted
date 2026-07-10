@@ -330,3 +330,38 @@ export function starterMealFitsDiet(
     !m.allergens.includes("Eggs")
   );
 }
+
+/**
+ * Conservative keyword filter for religious/cultural dietary needs.
+ * Deliberately errs on the side of exclusion (e.g. "sausages" are treated
+ * as pork unless the user adds their own halal version as a safe meal —
+ * their own meals are never filtered by this).
+ */
+const PORK_WORDS = [
+  "pork", "ham", "bacon", "sausage", "gammon", "chorizo", "pepperoni", "salami",
+];
+const BEEF_WORDS = ["beef", "steak", "oxtail"];
+const SHELLFISH_WORDS = [
+  "prawn", "shrimp", "crab", "lobster", "mussel", "oyster", "squid", "scallop",
+];
+
+export function starterMealFitsReligiousDiet(
+  m: StarterMeal,
+  religiousDiet: string[]
+): boolean {
+  for (const need of religiousDiet) {
+    const n = need.toLowerCase();
+    if (n.includes("halal") || n.includes("no pork")) {
+      if (containsAny(m, PORK_WORDS)) return false;
+    }
+    if (n.includes("kosher")) {
+      if (containsAny(m, [...PORK_WORDS, ...SHELLFISH_WORDS])) return false;
+      if (m.allergens.includes("Crustaceans") || m.allergens.includes("Molluscs"))
+        return false;
+    }
+    if (n.includes("no beef")) {
+      if (containsAny(m, BEEF_WORDS)) return false;
+    }
+  }
+  return true;
+}
