@@ -83,6 +83,45 @@ describe("parseReceiptLine", () => {
   it("returns null price when the line has none", () => {
     expect(parseReceiptLine("Cheese toastie").price).toBeNull();
   });
+
+  it("M&S PDF column format: qty column divides the line total", () => {
+    // extracted text runs join as: name, qty, detached £, total
+    expect(parseReceiptLine("M&S Chicken Korma 2 £ 10.09")).toEqual({
+      name: "M&S Chicken Korma",
+      price: 5.05, // 1009p / 2, no float drift
+      qty: 2,
+    });
+    expect(parseReceiptLine("M&S British Wafer Thin Breaded Ham 2 £ 5.00")).toEqual({
+      name: "M&S British Wafer Thin Breaded Ham",
+      price: 2.5,
+      qty: 2,
+    });
+    // qty 1: name keeps its own leading number, trailing qty+£ stripped
+    expect(
+      parseReceiptLine("M&S 4 Hand Wrapped Vegetable Samosas 1 £ 2.52")
+    ).toEqual({
+      name: "M&S 4 Hand Wrapped Vegetable Samosas",
+      price: 2.52,
+      qty: 1,
+    });
+  });
+
+  it("qty-unit-total column format divides by the quantity", () => {
+    expect(parseReceiptLine("Chicken Breast Fillets 3 2.10 6.30")).toEqual({
+      name: "Chicken Breast Fillets",
+      price: 2.1,
+      qty: 3,
+    });
+  });
+
+  it("does NOT mistake a pack size for a quantity column", () => {
+    // attached £ → normal line, the 6 is part of the product name
+    expect(parseReceiptLine("Free Range Eggs 6 £1.95")).toEqual({
+      name: "Free Range Eggs 6",
+      price: 1.95,
+      qty: 1,
+    });
+  });
 });
 
 describe("cleanReceiptLine", () => {

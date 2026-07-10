@@ -131,11 +131,27 @@ export function parseReceiptLine(raw: string): ParsedLine {
 
   // Find the last plausible price on the line BEFORE stripping decorations.
   // Weight-priced lines ("1.2kg @ £0.78 each") deliberately use the unit
-  // price — it's the closest thing to a per-item figure.
-  let price: number | null = null;
+  // price — it's the closest thing to a per-item figure. Kept in pence to
+  // avoid float drift when dividing across quantities.
+  let pence: number | null = null;
   for (const m of s.matchAll(PRICE_TOKEN)) {
-    const value = parseInt(m[1], 10) + parseInt(m[2], 10) / 100;
-    if (value > 0 && value < 1000) price = value;
+    const value = parseInt(m[1], 10) * 100 + parseInt(m[2], 10);
+    if (value > 0 && value < 100000) pence = value;
+  }
+
+  // Column-format receipts (e.g. M&S PDFs): "name  qty  £  total" or
+  // "name  qty  unit  total". The quantity column is only recognised when
+  // followed by a DETACHED currency symbol or two price columns — so pack
+  // sizes in names ("Free Range Eggs 6 £1.95") are left alone.
+  const col = s.match(
+    /\s(\d{1,2})\s+(?:[£$€]\s+\d{1,4}[.,]\d{2}|\d{1,4}[.,]\d{2}\s+[£$€]?\s*\d{1,4}[.,]\d{2})\s*$/
+  );
+  if (col && qty === 1) {
+    const q = parseInt(col[1], 10);
+    if (q >= 1 && q <= 24) {
+      qty = q;
+      s = s.slice(0, col.index);
+    }
   }
 
   // trailing unit-price notes: "@ £1.20 each", "2 @ 0.85"
@@ -144,6 +160,8 @@ export function parseReceiptLine(raw: string): ParsedLine {
   for (let i = 0; i < 3; i++) {
     s = s.replace(/\s+[£$]?\d+[.,]\d{2}\s*[a-z*]?$/i, "");
   }
+  // a currency symbol left dangling by column layouts ("… 1 £")
+  s = s.replace(/\s+[£$€]\s*$/, "");
   // trailing "each"/star markers
   s = s.replace(/\s+(each|ea|per kg)\s*$/i, "");
   s = s.replace(/\s*[*]+\s*$/, "");
@@ -151,8 +169,7 @@ export function parseReceiptLine(raw: string): ParsedLine {
   s = s.replace(/\s+[x×]\s*\d+\s*$/i, "");
 
   const name = s.replace(/\s{2,}/g, " ").trim();
-  const perItem =
-    price == null ? null : Math.round((price / qty) * 100) / 100;
+  const perItem = pence == null ? null : Math.round(pence / qty) / 100;
   return { name, price: perItem, qty };
 }
 
