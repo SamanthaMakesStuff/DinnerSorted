@@ -3,7 +3,11 @@
 import Link from "next/link";
 import { useId, useRef, useState } from "react";
 import { useStore } from "@/lib/store";
-import { parseReceiptText, type RemovedItem } from "@/lib/receipt";
+import {
+  parseReceiptText,
+  type ReceiptItem,
+  type RemovedItem,
+} from "@/lib/receipt";
 import { extractTextFromImage, extractTextFromPdf } from "@/lib/extract";
 import { makeId } from "@/lib/defaults";
 import type { SafeMeal } from "@/lib/types";
@@ -20,7 +24,7 @@ export default function ReceiptImportPage() {
   const [error, setError] = useState("");
   const [pasted, setPasted] = useState("");
   const [progress, setProgress] = useState(0);
-  const [candidates, setCandidates] = useState<string[]>([]);
+  const [candidates, setCandidates] = useState<ReceiptItem[]>([]);
   const [removed, setRemoved] = useState<RemovedItem[]>([]);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [added, setAdded] = useState(0);
@@ -113,21 +117,21 @@ export default function ReceiptImportPage() {
 
   function rescue(item: RemovedItem) {
     setRemoved((prev) => prev.filter((r) => r.name !== item.name));
-    setCandidates((prev) => [...prev, item.name]);
+    setCandidates((prev) => [...prev, { name: item.name, price: item.price }]);
     setSelected((prev) => new Set(prev).add(item.name));
   }
 
   function addSelected() {
-    const names = candidates.filter(
-      (c) => selected.has(c) && !existingNames.has(c.toLowerCase())
+    const items = candidates.filter(
+      (c) => selected.has(c.name) && !existingNames.has(c.name.toLowerCase())
     );
-    if (names.length === 0) {
+    if (items.length === 0) {
       setError("Tick at least one item first.");
       return;
     }
-    const newMeals: SafeMeal[] = names.map((name) => ({
+    const newMeals: SafeMeal[] = items.map((item) => ({
       id: makeId("meal"),
-      name,
+      name: item.name,
       notes: "Added from a receipt",
       effort: "low",
       steps: null,
@@ -136,7 +140,7 @@ export default function ReceiptImportPage() {
       temperature: "any",
       tags: [],
       ingredients: [],
-      estCost: null,
+      estCost: item.price,
       allergens: [],
       traceAllergens: [],
       isNew: false,
@@ -144,11 +148,11 @@ export default function ReceiptImportPage() {
       fixedDay: null,
     }));
     update((d) => ({ ...d, safeMeals: [...d.safeMeals, ...newMeals] }));
-    setAdded(names.length);
+    setAdded(items.length);
     setSelected(new Set());
     setError("");
     setStatus(
-      `Added ${names.length} item${names.length === 1 ? "" : "s"} to your safe foods. You can add details like allergens or cost from the Safe meals page any time.`
+      `Added ${items.length} item${items.length === 1 ? "" : "s"} to your safe foods, with prices where the receipt showed them. You can add details like allergens from the Safe meals page any time.`
     );
   }
 
@@ -164,8 +168,9 @@ export default function ReceiptImportPage() {
         straight to your safe foods.
       </p>
       <p className="notice info">
-        Your receipt is read <strong>on this device</strong> — it&rsquo;s
-        never uploaded or stored anywhere.
+        <strong>Private by design:</strong> pasted text and uploaded files are
+        processed entirely <strong>in your browser, on this device</strong>.
+        Nothing is uploaded to a server, and nothing is stored anywhere else.
       </p>
 
       {phase === "input" && (
@@ -199,7 +204,8 @@ export default function ReceiptImportPage() {
               Screenshot or PDF of a receipt
               <span className="label-hint">
                 PNG, JPG or PDF. Screenshots read best when they&rsquo;re
-                straight-on and clear.
+                straight-on and clear. Uploads are processed in your browser
+                and are not stored anywhere else.
               </span>
             </label>
             <input
@@ -237,7 +243,9 @@ export default function ReceiptImportPage() {
                   onClick={() =>
                     setSelected(
                       new Set(
-                        candidates.filter((c) => !existingNames.has(c.toLowerCase()))
+                        candidates
+                          .filter((c) => !existingNames.has(c.name.toLowerCase()))
+                          .map((c) => c.name)
                       )
                     )
                   }
@@ -253,20 +261,28 @@ export default function ReceiptImportPage() {
                 </button>
               </div>
               <ul style={{ listStyle: "none", padding: 0 }}>
-                {candidates.map((name) => {
-                  const already = existingNames.has(name.toLowerCase());
+                {candidates.map((item) => {
+                  const already = existingNames.has(item.name.toLowerCase());
                   return (
-                    <li key={name}>
+                    <li key={item.name}>
                       <div className="check-row">
                         <input
                           type="checkbox"
-                          id={`item-${name}`}
-                          checked={already || selected.has(name)}
+                          id={`item-${item.name}`}
+                          checked={already || selected.has(item.name)}
                           disabled={already}
-                          onChange={() => toggle(name)}
+                          onChange={() => toggle(item.name)}
                         />
-                        <label htmlFor={`item-${name}`}>
-                          {name}
+                        <label htmlFor={`item-${item.name}`}>
+                          {item.name}
+                          {item.price != null && (
+                            <>
+                              {" "}
+                              <span className="muted">
+                                — £{item.price.toFixed(2)}
+                              </span>
+                            </>
+                          )}
                           {already && (
                             <>
                               {" "}
