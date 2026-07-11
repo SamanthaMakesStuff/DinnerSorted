@@ -262,6 +262,12 @@ export interface WeekPlan {
   estTotal: number | null;
   /** Set when estTotal exceeds the weekly budget cap. */
   budgetWarning: string | null;
+  /**
+   * Meals offered by this plan that aren't in the user's safeMeals list —
+   * e.g. a suggested supermarket ready meal. Embedded so the plan stays
+   * self-contained even if the catalogue changes later.
+   */
+  extraMeals?: SafeMeal[];
 }
 
 export interface FreezerItem {

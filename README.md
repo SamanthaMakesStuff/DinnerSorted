@@ -74,6 +74,23 @@ Implemented:
 
 Added beyond the spec (owner request):
 
+- **Supermarket catalogue + real meal recommendations**: a companion
+  scraper CLI (`tools/tesco-scraper` — see its README) runs weekly from the
+  owner's own computer and fills a shared `products` table with Tesco
+  ready meals: name, price, size, portions, full ingredients, UK-14
+  allergens detected from the ingredients, "may contain" traces, cooking
+  time, vegetarian/vegan flags and availability. The app then provides:
+  a **Ready meals** browse page (pre-filtered by the user's allergy and
+  sensory settings via the same engine as everything else, with visible
+  "why is this hidden" reasons), one-tap add-to-safe-foods with price and
+  allergens carried over, and — only when the user has opted in to new
+  foods — the weekly plan's occasional suggestion becomes a **real
+  supermarket ready meal** instead of a generic recipe. Suggested meals are
+  embedded in the plan itself, so history and the shopping list stay
+  self-contained. Runs from a residential machine because supermarket
+  sites block datacentre traffic; the tool is deliberately polite and
+  low-volume. Create the table once with `npm run db:push`.
+
 - **Receipt import** (`/safe-meals/receipt`): paste an online-shopping
   receipt, or upload a screenshot or PDF of one, then tick items to add to
   the safe-foods list. Prices, quantities, totals, payment and loyalty

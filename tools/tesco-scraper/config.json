@@ -1,0 +1,11 @@
+{
+  "supermarket": "Tesco",
+  "categoryUrls": [
+    "https://www.tesco.com/groceries/en-GB/shop/fresh-food/ready-meals/all"
+  ],
+  "categoryLabel": "Ready meals",
+  "maxProducts": 400,
+  "maxCategoryPages": 15,
+  "minDelayMs": 2500,
+  "maxDelayMs": 6000
+}

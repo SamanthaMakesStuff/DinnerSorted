@@ -1,5 +1,8 @@
 # dependencies
-/node_modules
+node_modules/
+
+# scraper dry-run output
+tools/tesco-scraper/products.json
 
 # next.js
 /.next/

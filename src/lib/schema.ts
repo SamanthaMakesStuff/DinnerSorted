@@ -60,6 +60,7 @@ const weekPlan = z.object({
   slots: z.array(planSlot),
   estTotal: z.number().min(0).nullable().default(null),
   budgetWarning: z.string().max(500).nullable().default(null),
+  extraMeals: z.array(safeMeal).max(20).default([]),
 });
 
 const preferences = z.object({

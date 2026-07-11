@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useStore } from "@/lib/store";
 import {
   buildMealPool,
@@ -9,13 +9,38 @@ import {
   reasonLabel,
   resolvePlanMeal,
 } from "@/lib/generation";
-import { DAY_LABELS, MAX_PLAN_HISTORY } from "@/lib/types";
+import { productToSafeMeal, type CatalogueProduct } from "@/lib/catalogue";
+import { DAY_LABELS, MAX_PLAN_HISTORY, type SafeMeal } from "@/lib/types";
 import { EmergencyMeals } from "@/components/EmergencyMeals";
 
 export default function PlanPage() {
   const { data, update, ready } = useStore();
   const [showAnyway, setShowAnyway] = useState(false);
   const [status, setStatus] = useState("");
+  const [catalogue, setCatalogue] = useState<SafeMeal[]>([]);
+
+  // Supermarket catalogue feeds the occasional new-food suggestion (only
+  // used when the user has opted in). Absence is fine — starter library
+  // fallback applies.
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/products?limit=200")
+      .then((res) => (res.ok ? res.json() : { products: [] }))
+      .then((body) => {
+        if (cancelled) return;
+        setCatalogue(
+          (body.products ?? []).map((p: CatalogueProduct) =>
+            productToSafeMeal(p, { isNew: true })
+          )
+        );
+      })
+      .catch(() => {
+        /* catalogue unavailable — suggestions fall back to starters */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   if (!ready) return <p aria-live="polite">Loading your data…</p>;
 
@@ -28,6 +53,7 @@ export default function PlanPage() {
     const result = generateWeekPlan(data, {
       includeOverridable: showAnyway,
       surpriseSeed: opts.surprise ? String(Date.now()) : undefined,
+      catalogue,
     });
     update((d) => ({
       ...d,

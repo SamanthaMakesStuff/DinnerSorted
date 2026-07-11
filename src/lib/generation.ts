@@ -228,6 +228,13 @@ export interface GenerateOptions {
    * (rotation continues from history; no shuffling — rule 5).
    */
   surpriseSeed?: string;
+  /**
+   * Supermarket catalogue meals (already converted to SafeMeal shape with
+   * isNew: true). When present and the user has opted in to new foods,
+   * these are the preferred source of the occasional new suggestion —
+   * a real ready meal from their supermarket instead of a generic recipe.
+   */
+  catalogue?: SafeMeal[];
 }
 
 export interface GenerateResult {
@@ -257,12 +264,21 @@ export function generateWeekPlan(
   let newSuggestion: SafeMeal | null = null;
   if (prefs.newFoodsOptIn && prefs.rotation === "mostly-safe") {
     const ownNames = new Set(data.safeMeals.map((m) => m.name.toLowerCase()));
-    const candidates = STARTER_MEALS.filter(
+    // Prefer real supermarket meals from the catalogue when available;
+    // fall back to the built-in starter library.
+    const catalogueCandidates = (opts.catalogue ?? []).filter(
+      (m) => !ownNames.has(m.name.toLowerCase())
+    );
+    const starterCandidates = STARTER_MEALS.filter(
       (m) =>
         !ownNames.has(m.name.toLowerCase()) &&
         starterMealFitsDiet(m, prefs.dietType) &&
         starterMealFitsReligiousDiet(m, prefs.religiousDiet)
     ).map((m) => ({ ...m, id: `new_${m.name.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`, isNew: true }));
+    const candidates =
+      catalogueCandidates.length > 0 ? catalogueCandidates : starterCandidates;
+    // Vet against every safety rule; the pool must allow isNew here, so we
+    // vet with newFoodsOptIn already true (it is — we're inside the gate).
     const vetted = buildMealPool(prefs, candidates, {}).eligible.filter(
       // A brand-new food should never be a high-effort gamble.
       (m) => m.effort === "low"
@@ -411,6 +427,13 @@ export function generateWeekPlan(
     warnings.push(budgetWarning);
   }
 
+  // Embed any suggested non-safe-list meal so the plan is self-contained
+  // (home page, shopping list and history can resolve it without the
+  // catalogue being reachable).
+  const offeredIds = new Set(slots.flatMap((s) => s.optionIds));
+  const extraMeals =
+    newSuggestion && offeredIds.has(newSuggestion.id) ? [newSuggestion] : [];
+
   const plan: WeekPlan = {
     id: makeId("plan"),
     createdAt: new Date().toISOString(),
@@ -422,6 +445,7 @@ export function generateWeekPlan(
     slots,
     estTotal,
     budgetWarning,
+    extraMeals,
   };
 
   return { plan, pool, warnings };
@@ -434,6 +458,11 @@ export function resolvePlanMeal(
 ): SafeMeal | null {
   const own = data.safeMeals.find((m) => m.id === mealId);
   if (own) return own;
+  // Meals embedded in a plan (catalogue/new-food suggestions).
+  for (const plan of data.planHistory) {
+    const extra = (plan.extraMeals ?? []).find((m) => m.id === mealId);
+    if (extra) return extra;
+  }
   if (mealId.startsWith("new_")) {
     const starter = STARTER_MEALS.find(
       (m) => `new_${m.name.toLowerCase().replace(/[^a-z0-9]+/g, "-")}` === mealId

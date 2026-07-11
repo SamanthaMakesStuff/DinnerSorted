@@ -1,0 +1,14 @@
+{
+  "name": "dinnersorted-tesco-scraper",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Companion CLI that reads Tesco ready-meal data into the DinnerSorted catalogue. Run from your own machine, not from a server.",
+  "scripts": {
+    "scrape": "node scrape.mjs"
+  },
+  "dependencies": {
+    "playwright": "^1.49.0",
+    "postgres": "^3.4.7"
+  }
+}

@@ -7,6 +7,7 @@ const BASE_ITEMS: { href: string; label: string }[] = [
   { href: "/", label: "This week" },
   { href: "/preferences", label: "Preferences" },
   { href: "/safe-meals", label: "Safe meals" },
+  { href: "/browse", label: "Ready meals" },
   { href: "/plan", label: "Plan my week" },
   { href: "/shopping-list", label: "Shopping list" },
   { href: "/history", label: "Past weeks" },
