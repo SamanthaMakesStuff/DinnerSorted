@@ -20,6 +20,7 @@
  */
 import fs from "node:fs";
 import path from "node:path";
+import readline from "node:readline";
 import { fileURLToPath } from "node:url";
 import {
   extractProductFromHtml,
@@ -60,6 +61,31 @@ const politeDelay = () =>
   sleep(
     config.minDelayMs + Math.random() * (config.maxDelayMs - config.minDelayMs)
   );
+
+/** Pause the run and wait for the user to press Enter in the terminal. */
+function waitForEnter(message) {
+  const rl = readline.createInterface({
+    input: process.stdin,
+    output: process.stdout,
+  });
+  return new Promise((resolve) => rl.question(message, () => {
+    rl.close();
+    resolve();
+  }));
+}
+
+/** True when a page looks like an Akamai/bot "Access Denied" block. */
+async function looksBlocked(page) {
+  const title = (await page.title().catch(() => "")).toLowerCase();
+  if (title.includes("access denied") || title.includes("are you a robot"))
+    return true;
+  const body = await page
+    .textContent("body")
+    .catch(() => "");
+  return /access denied|you don't have permission|edgesuite\.net|unusual traffic|verify you are human/i.test(
+    body ?? ""
+  );
+}
 
 async function upsertProduct(sql, p) {
   await sql`
@@ -118,28 +144,97 @@ async function main() {
     }
   } else {
     const { chromium } = await import("playwright");
-    const browser = await chromium.launch({ headless: !HEADED });
-    const page = await browser.newPage({
-      viewport: { width: 1280, height: 900 },
+
+    // Use a persistent profile in a REAL Chrome where possible, with the
+    // automation fingerprint stripped. This is what gives the best chance
+    // against Akamai bot protection: a returning-looking profile whose
+    // clearance cookies persist between runs, plus a human fallback below.
+    const profileDir = path.join(__dirname, "chrome-profile");
+    const launchOpts = {
+      headless: !HEADED,
+      viewport: { width: 1366, height: 900 },
       locale: "en-GB",
+      timezoneId: "Europe/London",
+      args: [
+        "--disable-blink-features=AutomationControlled",
+        "--disable-features=IsolateOrigins,site-per-process",
+      ],
+    };
+    let context;
+    try {
+      // Real installed Chrome — far less fingerprintable than bundled Chromium.
+      context = await chromium.launchPersistentContext(profileDir, {
+        channel: "chrome",
+        ...launchOpts,
+      });
+    } catch {
+      console.warn(
+        "Couldn't launch your installed Chrome (channel: chrome); " +
+          "falling back to bundled Chromium, which is easier for sites to block."
+      );
+      context = await chromium.launchPersistentContext(profileDir, launchOpts);
+    }
+    // Mask the most obvious automation signal.
+    await context.addInitScript(() => {
+      Object.defineProperty(navigator, "webdriver", { get: () => undefined });
     });
+    const page = context.pages()[0] ?? (await context.newPage());
+
+    // Prime the session on the Tesco homepage first (sets Akamai cookies the
+    // way a normal visit would) before jumping to a deep category URL.
+    await page.goto("https://www.tesco.com/", {
+      waitUntil: "domcontentloaded",
+      timeout: 45000,
+    }).catch(() => {});
+    try {
+      await page.getByRole("button", { name: /accept all/i }).first().click({ timeout: 5000 });
+    } catch {
+      /* no banner */
+    }
+    await sleep(1500);
 
     // 1) Collect product links from the category pages.
     const links = new Set();
+    let aborted = false;
     for (const categoryUrl of config.categoryUrls) {
       for (let pageNo = 1; pageNo <= config.maxCategoryPages; pageNo++) {
         const url =
           pageNo === 1 ? categoryUrl : `${categoryUrl}?page=${pageNo}`;
         console.log(`category: ${url}`);
         await page.goto(url, { waitUntil: "domcontentloaded", timeout: 45000 });
-        // cookie banner, first page only
+
+        // Bot-block handling. In headed mode, hand control to the user to
+        // solve the challenge once; the persistent profile remembers it.
+        if (await looksBlocked(page)) {
+          if (HEADED) {
+            await waitForEnter(
+              "\n  ⚠ Tesco is showing a block/verification page.\n" +
+                "  In the Chrome window that opened: solve any 'are you human'\n" +
+                "  challenge, or just browse to the ready-meals category so a\n" +
+                "  normal page loads. Then come back here and press Enter…"
+            );
+            await page.goto(url, { waitUntil: "domcontentloaded", timeout: 45000 });
+          }
+          if (await looksBlocked(page)) {
+            const debugPath = path.join(__dirname, "debug-category.html");
+            fs.writeFileSync(debugPath, await page.content());
+            console.warn(
+              `  Still blocked by Tesco (Akamai). Saved ${debugPath}.\n` +
+                (HEADED
+                  ? "  The automated browser is being detected. See the README's\n" +
+                    "  'If Tesco keeps blocking it' section for options."
+                  : "  Re-run with --headed to solve the check manually once.")
+            );
+            aborted = true;
+            break;
+          }
+        }
+
+        // cookie banner (first category page)
         try {
-          await page
-            .getByRole("button", { name: /accept all/i })
-            .first()
-            .click({ timeout: 4000 });
+          await page.getByRole("button", { name: /accept all/i }).first().click({ timeout: 4000 });
         } catch {
-          /* no banner — fine */
+          /* none */
         }
         // product tiles can render after initial load — wait for one
         try {
@@ -147,7 +242,7 @@ async function main() {
             timeout: 15000,
           });
         } catch {
-          /* handled below via zero-link diagnostics */
+          /* handled by zero-link diagnostics below */
         }
         await sleep(1500);
         const before = links.size;
@@ -155,34 +250,34 @@ async function main() {
         for (const l of extractProductLinks(html)) links.add(l);
         console.log(`  products so far: ${links.size}`);
         if (links.size === 0 && pageNo === 1) {
-          // Nothing at all — save what the browser actually saw so the
-          // markup/bot-block can be diagnosed offline.
           const debugPath = path.join(__dirname, "debug-category.html");
           fs.writeFileSync(debugPath, html);
           const title = await page.title();
           console.warn(
             `  no product links found. Page title was: "${title}".\n` +
-              `  Saved the page to ${debugPath} — check it for an access-denied\n` +
-              `  or robot-check message, or share it for extractor tuning.\n` +
-              `  Tip: run with --headed to watch the browser and click through\n` +
-              `  any human-verification screen, then leave the window open.`
+              `  Saved the page to ${debugPath} — share it for extractor tuning.`
           );
         }
         if (links.size === before) break; // no new products → past last page
         if (links.size >= (LIMIT ?? config.maxProducts)) break;
         await politeDelay();
       }
-      if (links.size >= (LIMIT ?? config.maxProducts)) break;
+      if (aborted || links.size >= (LIMIT ?? config.maxProducts)) break;
     }
 
     // 2) Visit each product page and extract.
     const productLinks = [...links].slice(0, LIMIT ?? config.maxProducts);
-    console.log(`\nvisiting ${productLinks.length} product pages…`);
+    if (productLinks.length > 0)
+      console.log(`\nvisiting ${productLinks.length} product pages…`);
     let done = 0;
     for (const url of productLinks) {
       await politeDelay();
       try {
         await page.goto(url, { waitUntil: "domcontentloaded", timeout: 45000 });
+        if (await looksBlocked(page)) {
+          console.warn(`  blocked on ${url} — skipping`);
+          continue;
+        }
         const p = extractProductFromHtml(
           await page.content(),
           url,
@@ -199,7 +294,7 @@ async function main() {
         console.warn(`  failed ${url}: ${String(e).slice(0, 120)}`);
       }
     }
-    await browser.close();
+    await context.close();
   }
 
   console.log(`\nextracted ${products.length} products`);

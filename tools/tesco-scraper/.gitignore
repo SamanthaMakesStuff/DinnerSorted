@@ -1,0 +1,5 @@
+node_modules/
+chrome-profile/
+debug-category.html
+products.json
+scrape.log
