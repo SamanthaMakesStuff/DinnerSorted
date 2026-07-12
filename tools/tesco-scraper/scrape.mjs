@@ -141,10 +141,33 @@ async function main() {
         } catch {
           /* no banner — fine */
         }
+        // product tiles can render after initial load — wait for one
+        try {
+          await page.waitForSelector('a[href*="/groceries/en-GB/products/"]', {
+            timeout: 15000,
+          });
+        } catch {
+          /* handled below via zero-link diagnostics */
+        }
         await sleep(1500);
         const before = links.size;
-        for (const l of extractProductLinks(await page.content())) links.add(l);
+        const html = await page.content();
+        for (const l of extractProductLinks(html)) links.add(l);
         console.log(`  products so far: ${links.size}`);
+        if (links.size === 0 && pageNo === 1) {
+          // Nothing at all — save what the browser actually saw so the
+          // markup/bot-block can be diagnosed offline.
+          const debugPath = path.join(__dirname, "debug-category.html");
+          fs.writeFileSync(debugPath, html);
+          const title = await page.title();
+          console.warn(
+            `  no product links found. Page title was: "${title}".\n` +
+              `  Saved the page to ${debugPath} — check it for an access-denied\n` +
+              `  or robot-check message, or share it for extractor tuning.\n` +
+              `  Tip: run with --headed to watch the browser and click through\n` +
+              `  any human-verification screen, then leave the window open.`
+          );
+        }
         if (links.size === before) break; // no new products → past last page
         if (links.size >= (LIMIT ?? config.maxProducts)) break;
         await politeDelay();
