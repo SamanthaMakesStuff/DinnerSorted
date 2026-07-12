@@ -7,5 +7,6 @@
   "maxProducts": 400,
   "maxCategoryPages": 15,
   "minDelayMs": 2500,
-  "maxDelayMs": 6000
+  "maxDelayMs": 6000,
+  "refreshDays": 14
 }

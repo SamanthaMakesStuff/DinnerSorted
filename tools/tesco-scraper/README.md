@@ -47,7 +47,24 @@ Useful variations:
 | `node scrape.mjs --limit 5` | Quick health-check: 5 products only |
 | `node scrape.mjs --dry-run` | No database writes — results go to `products.json` to inspect |
 | `node scrape.mjs --headed` | Shows the browser window so you can watch/debug |
+| `node scrape.mjs --full` | Re-visit every product page, ignoring freshness |
 | `node scrape.mjs --fixtures ./saved` | Parses saved `.html` files instead of the live site |
+
+## Runs are incremental (fast after the first one)
+
+The first run visits every product page (~30–45 min for ~400 meals). After
+that, products scraped within the last `refreshDays` (config, default 14)
+are **not re-visited**: the category listing already proves they're still
+stocked, so their availability is refreshed directly and only **new or
+stale** products get page visits. A typical weekly run therefore takes a
+few minutes, and every product still gets fully re-read (fresh price,
+ingredients) at least every two weeks. Use `--full` to force a complete
+re-read; lower `refreshDays` if you want prices fresher at the cost of
+longer runs.
+
+If you're tempted to shrink `minDelayMs`/`maxDelayMs` instead: you can,
+but shorter gaps look more bot-like to Akamai — incremental runs make
+speed mostly a non-issue without taking that risk.
 
 ## Weekly schedule (optional)
 

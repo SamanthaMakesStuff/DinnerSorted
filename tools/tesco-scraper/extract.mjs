@@ -124,6 +124,28 @@ export function productIdFromUrl(url) {
   return m ? m[1] : null;
 }
 
+/**
+ * Incremental-run partitioning: given the product links found in the
+ * category listing and what the database already holds, decide which pages
+ * actually need visiting. Products scraped within `refreshDays` are fresh —
+ * the listing already proves they're still stocked, so their availability
+ * can be bumped without loading their page.
+ */
+export function splitByFreshness(links, existing, refreshDays, now = new Date()) {
+  const cutoff = now.getTime() - refreshDays * 24 * 60 * 60 * 1000;
+  const visit = [];
+  const refreshOnly = [];
+  for (const url of links) {
+    const lastSeen = existing.get(url);
+    if (lastSeen != null && new Date(lastSeen).getTime() >= cutoff) {
+      refreshOnly.push(url);
+    } else {
+      visit.push(url);
+    }
+  }
+  return { visit, refreshOnly };
+}
+
 function sectionAfter(text, headings, stops) {
   const startRe = new RegExp(`^\\s*(${headings.join("|")})\\s*:?\\s*$`, "im");
   const start = text.match(startRe);

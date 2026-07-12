@@ -25,6 +25,7 @@ import { fileURLToPath } from "node:url";
 import {
   extractProductFromHtml,
   extractProductLinks,
+  splitByFreshness,
 } from "./extract.mjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -42,6 +43,8 @@ const LIMIT = opt("--limit") ? parseInt(opt("--limit"), 10) : null;
 const DRY_RUN = flag("--dry-run");
 const FIXTURES = opt("--fixtures");
 const HEADED = flag("--headed");
+// --full ignores freshness and re-visits every product page.
+const FULL = flag("--full");
 
 function loadDatabaseUrl() {
   if (process.env.DATABASE_URL) return process.env.DATABASE_URL;
@@ -269,8 +272,48 @@ async function main() {
       if (aborted || links.size >= (LIMIT ?? config.maxProducts)) break;
     }
 
-    // 2) Visit each product page and extract.
-    const productLinks = [...links].slice(0, LIMIT ?? config.maxProducts);
+    // 2) Incremental mode: products scraped within refreshDays don't need
+    //    their pages re-visited — the listing already proves they're still
+    //    stocked, so just bump their availability. Weekly runs then only
+    //    visit new or stale products. --full forces visiting everything.
+    let productLinks = [...links].slice(0, LIMIT ?? config.maxProducts);
+    if (!DRY_RUN && !FULL) {
+      const dbUrl = loadDatabaseUrl();
+      if (dbUrl) {
+        const { default: postgres } = await import("postgres");
+        const sqlEarly = postgres(dbUrl, { max: 1, prepare: false });
+        try {
+          const rows = await sqlEarly`
+            select url, last_seen_at from products
+            where supermarket = ${config.supermarket}
+          `;
+          const existing = new Map(rows.map((r) => [r.url, r.last_seen_at]));
+          const { visit, refreshOnly } = splitByFreshness(
+            productLinks,
+            existing,
+            config.refreshDays ?? 14
+          );
+          for (let i = 0; i < refreshOnly.length; i += 100) {
+            const chunk = refreshOnly.slice(i, i + 100);
+            await sqlEarly`
+              update products set last_seen_at = now(), available = true
+              where url in ${sqlEarly(chunk)}
+            `;
+          }
+          if (refreshOnly.length > 0) {
+            console.log(
+              `\n${refreshOnly.length} products scraped within the last ` +
+                `${config.refreshDays ?? 14} days — availability refreshed ` +
+                `without visiting (use --full to force re-visits)`
+            );
+          }
+          productLinks = visit;
+        } finally {
+          await sqlEarly.end();
+        }
+      }
+    }
+
     if (productLinks.length > 0)
       console.log(`\nvisiting ${productLinks.length} product pages…`);
     let done = 0;

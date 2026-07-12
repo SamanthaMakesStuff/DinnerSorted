@@ -10,6 +10,7 @@ import {
   extractProductFromHtml,
   extractProductLinks,
   mapTextToAllergens,
+  splitByFreshness,
 } from "./extract.mjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -141,6 +142,35 @@ describe("extractCookingInstructions", () => {
     const out = extractCookingInstructions(text);
     expect(out).toMatch(/Microwave 900W/);
     expect(out).not.toMatch(/Keep refrigerated/);
+  });
+});
+
+describe("splitByFreshness", () => {
+  const now = new Date("2026-07-12T12:00:00Z");
+  const day = 24 * 60 * 60 * 1000;
+  it("skips recently-seen products, visits new and stale ones", () => {
+    const existing = new Map([
+      ["https://t/products/1", new Date(now.getTime() - 2 * day)], // fresh
+      ["https://t/products/2", new Date(now.getTime() - 30 * day)], // stale
+    ]);
+    const { visit, refreshOnly } = splitByFreshness(
+      ["https://t/products/1", "https://t/products/2", "https://t/products/3"],
+      existing,
+      14,
+      now
+    );
+    expect(refreshOnly).toEqual(["https://t/products/1"]);
+    expect(visit).toEqual(["https://t/products/2", "https://t/products/3"]);
+  });
+  it("visits everything when the database is empty", () => {
+    const { visit, refreshOnly } = splitByFreshness(
+      ["https://t/products/1"],
+      new Map(),
+      14,
+      now
+    );
+    expect(visit).toEqual(["https://t/products/1"]);
+    expect(refreshOnly).toEqual([]);
   });
 });
 
