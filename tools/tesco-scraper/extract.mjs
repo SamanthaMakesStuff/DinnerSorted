@@ -137,7 +137,7 @@ function sectionAfter(text, headings, stops) {
 }
 
 export function extractIngredients(text) {
-  return sectionAfter(
+  const section = sectionAfter(
     text,
     ["ingredients", "ingredients list"],
     [
@@ -156,16 +156,28 @@ export function extractIngredients(text) {
       "using product information",
     ]
   );
+  // Pages often repeat an "Ingredients" heading and an inline "INGREDIENTS:"
+  // label; strip any run of those from the front so the text starts at the
+  // first real ingredient.
+  return section.replace(/^(?:\s*ingredients\s*:?\s*)+/i, "").trim();
 }
 
 export function extractPortions(text) {
-  const m =
+  const direct =
     text.match(/serves\s*(\d{1,2})/i) ??
+    text.match(/(\d{1,2})\s*servings?\s*per\s*pack/i) ??
+    text.match(/servings?\s*per\s*pack\s*:?\s*(\d{1,2})/i) ??
     text.match(/(\d{1,2})\s*portions?\b/i) ??
-    text.match(/(\d{1,2})\s*servings?\b/i);
-  if (!m) return null;
-  const n = parseInt(m[1], 10);
-  return n >= 1 && n <= 12 ? n : null;
+    text.match(/number of uses\s*:?\s*(\d{1,2})/i);
+  if (direct) {
+    const n = parseInt(direct[1], 10);
+    if (n >= 1 && n <= 12) return n;
+  }
+  // Nutrition tables headed "Per ½ pack" (etc.) imply servings per pack.
+  if (/per\s*(?:½|1\s*\/\s*2|0\.5)\s*(?:of\s*(?:a\s*)?)?pack/i.test(text)) return 2;
+  if (/per\s*(?:⅓|1\s*\/\s*3)\s*(?:of\s*(?:a\s*)?)?pack/i.test(text)) return 3;
+  if (/per\s*(?:¼|1\s*\/\s*4)\s*(?:of\s*(?:a\s*)?)?pack/i.test(text)) return 4;
+  return null;
 }
 
 export function extractSizeText(name, text) {

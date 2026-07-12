@@ -3,6 +3,8 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import {
+  extractIngredients,
+  extractPortions,
   extractProductFromHtml,
   extractProductLinks,
   mapTextToAllergens,
@@ -72,6 +74,32 @@ describe("extractProductLinks", () => {
       "https://www.tesco.com/shop/en-GB/products/310672317"
     );
     expect(links.length).toBe(5);
+  });
+});
+
+describe("extractIngredients", () => {
+  it("strips a doubled Ingredients / INGREDIENTS: label (real Tesco layout)", () => {
+    const text =
+      "Product Description\nSomething tasty\nIngredients\n INGREDIENTS: Cooked Spaghetti Pasta [Water, Durum Wheat Semolina], Whole Milk.\nAllergy Information\nFor allergens see bold.";
+    const out = extractIngredients(text);
+    expect(out.startsWith("Cooked Spaghetti Pasta")).toBe(true);
+    expect(out).not.toMatch(/INGREDIENTS:/i);
+  });
+});
+
+describe("extractPortions", () => {
+  it("reads a plain Serves N", () => {
+    expect(extractPortions("Serves 2\nKeep refrigerated")).toBe(2);
+  });
+  it("reads servings-per-pack phrasing", () => {
+    expect(extractPortions("2 servings per pack")).toBe(2);
+    expect(extractPortions("Servings per pack: 3")).toBe(3);
+  });
+  it("infers from a 'Per ½ pack' nutrition heading", () => {
+    expect(extractPortions("Typical values Per 100g Per ½ pack")).toBe(2);
+  });
+  it("returns null when there's no serving info", () => {
+    expect(extractPortions("Keep refrigerated. Use by date on pack.")).toBeNull();
   });
 });
 
