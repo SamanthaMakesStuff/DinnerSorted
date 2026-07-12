@@ -49,7 +49,7 @@ describe("extractProductFromHtml", () => {
 });
 
 describe("extractProductLinks", () => {
-  it("finds product links, absolute and query-stripped", () => {
+  it("finds product links, absolute and query-stripped (old /groceries/ URLs)", () => {
     const links = extractProductLinks(FIXTURE);
     expect(links).toContain(
       "https://www.tesco.com/groceries/en-GB/products/300212345"
@@ -57,6 +57,21 @@ describe("extractProductLinks", () => {
     expect(links).toContain(
       "https://www.tesco.com/groceries/en-GB/products/301998877"
     );
+  });
+
+  it("reads the JSON-LD ItemList on a real category page (new /shop/ URLs)", () => {
+    const categoryHtml = fs.readFileSync(
+      path.join(__dirname, "fixtures", "category-readymeals.html"),
+      "utf8"
+    );
+    const links = extractProductLinks(categoryHtml);
+    expect(links).toContain(
+      "https://www.tesco.com/shop/en-GB/products/266748693"
+    );
+    expect(links).toContain(
+      "https://www.tesco.com/shop/en-GB/products/310672317"
+    );
+    expect(links.length).toBe(5);
   });
 });
 

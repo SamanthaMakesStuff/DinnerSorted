@@ -81,15 +81,41 @@ function findProductLd(html) {
   );
 }
 
-/** Product-page links from a category/listing page. */
+/**
+ * Product-page links from a category/listing page.
+ *
+ * Primary source is the server-rendered schema.org ItemList JSON-LD (stable,
+ * present before client JS runs). Falls back to anchor hrefs. Handles both
+ * Tesco URL shapes: the newer /shop/en-GB/products/ and the older
+ * /groceries/en-GB/products/.
+ */
 export function extractProductLinks(html, baseUrl = "https://www.tesco.com") {
   const links = new Set();
-  const re = /href=["']([^"']*\/groceries\/en-GB\/products\/(\d+)[^"']*)["']/gi;
-  let m;
-  while ((m = re.exec(html))) {
-    const href = m[1].startsWith("http") ? m[1] : baseUrl + m[1];
-    links.add(href.split("?")[0]);
+
+  const addFromUrl = (url) => {
+    if (typeof url !== "string") return;
+    if (!/\/products\/\d+/.test(url)) return;
+    const abs = url.startsWith("http") ? url : baseUrl + url;
+    links.add(abs.split("?")[0]);
+  };
+
+  // 1) JSON-LD ItemList — the reliable path.
+  for (const block of extractJsonLd(html)) {
+    const items =
+      block?.["@type"] === "ItemList" ? block.itemListElement : null;
+    if (Array.isArray(items)) {
+      for (const it of items) {
+        addFromUrl(it?.url ?? it?.item?.["@id"] ?? it?.item?.url);
+      }
+    }
   }
+
+  // 2) Anchor hrefs, either URL shape.
+  const re =
+    /href=["']([^"']*\/(?:shop|groceries)\/en-GB\/products\/\d+[^"']*)["']/gi;
+  let m;
+  while ((m = re.exec(html))) addFromUrl(m[1]);
+
   return [...links];
 }
 

@@ -238,7 +238,7 @@ async function main() {
         }
         // product tiles can render after initial load — wait for one
         try {
-          await page.waitForSelector('a[href*="/groceries/en-GB/products/"]', {
+          await page.waitForSelector('a[href*="/products/"]', {
             timeout: 15000,
           });
         } catch {
