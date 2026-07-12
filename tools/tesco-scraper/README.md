@@ -61,10 +61,16 @@ program":
 
 Name, price, pack size, portions ("Serves 2"), full ingredients text,
 UK-14 allergens detected from the ingredients, "may contain" traces,
-cooking time (microwave preferred), vegetarian/vegan flags, category,
-image URL, and availability (a full run marks products that have
-disappeared from the category as unavailable, so the app stops
-recommending them).
+cooking time (microwave preferred), the cooking-instructions text and the
+kitchen tools it mentions (microwave / oven / hob / air fryer / grill…),
+vegetarian/vegan flags, category, image URL, and availability (a full run
+marks products that have disappeared from the category as unavailable, so
+the app stops recommending them).
+
+The detected cooking tools are treated as **alternatives** in the app: a
+meal that says "microwave or oven" is offered to anyone who has *either*,
+and hidden only from someone who has *neither* — so the catalogue respects
+the equipment you listed in your preferences.
 
 ## If Tesco keeps blocking it
 

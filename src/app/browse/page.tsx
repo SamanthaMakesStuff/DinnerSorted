@@ -5,7 +5,9 @@ import { useEffect, useId, useMemo, useState } from "react";
 import { useStore } from "@/lib/store";
 import { buildMealPool, reasonLabel } from "@/lib/generation";
 import {
+  equipmentReason,
   pricePerPortion,
+  productCookable,
   productToSafeMeal,
   type CatalogueProduct,
 } from "@/lib/catalogue";
@@ -47,9 +49,11 @@ export default function BrowsePage() {
 
   // Convert products to meals and run them through the same safety engine
   // as everything else: medical allergies excluded outright, preference
-  // filters overridable via "show anyway".
-  const { visible, excludedCount, excluded } = useMemo(() => {
-    if (!productsList) return { visible: [], excludedCount: 0, excluded: [] };
+  // filters overridable via "show anyway". Equipment is handled separately
+  // as an "any one of these tools" check (ready-meal methods are alternatives).
+  const { visible, excludedCount, excluded, equipmentHidden } = useMemo(() => {
+    if (!productsList)
+      return { visible: [], excludedCount: 0, excluded: [], equipmentHidden: [] };
     const q = search.trim().toLowerCase();
     const searched = productsList.filter(
       (p) => !q || p.name.toLowerCase().includes(q)
@@ -64,10 +68,17 @@ export default function BrowsePage() {
       { includeOverridable: showAnyway }
     );
     const eligibleIds = new Set(pool.eligible.map((m) => m.id));
+    const eligible = asMeals.filter((x) => eligibleIds.has(x.meal.id));
+    // Split eligible meals by whether the user can actually cook them.
+    const cookable = eligible.filter((x) => productCookable(x.product, prefs));
+    const equipmentHidden = eligible
+      .filter((x) => !productCookable(x.product, prefs))
+      .map((x) => x.product);
     return {
-      visible: asMeals.filter((x) => eligibleIds.has(x.meal.id)),
+      visible: cookable,
       excludedCount: pool.excluded.length,
       excluded: pool.excluded,
+      equipmentHidden,
     };
   }, [productsList, search, prefs, showAnyway]);
 
@@ -147,7 +158,11 @@ export default function BrowsePage() {
           <p className="muted">
             Showing {visible.length} meal{visible.length === 1 ? "" : "s"}
             {excludedCount > 0 &&
-              ` (${excludedCount} hidden by your settings — details below)`}
+              ` (${excludedCount} hidden by your settings`}
+            {excludedCount > 0 && equipmentHidden.length > 0 && ", "}
+            {equipmentHidden.length > 0 &&
+              `${excludedCount === 0 ? " (" : ""}${equipmentHidden.length} you can't cook with your equipment`}
+            {(excludedCount > 0 || equipmentHidden.length > 0) && " — details below)"}
             .
           </p>
 
@@ -171,6 +186,8 @@ export default function BrowsePage() {
                       ` (£${perPortion.toFixed(2)} a portion)`}
                     {product.cookMinutes != null &&
                       ` · about ${product.cookMinutes} min`}
+                    {product.cookTools.length > 0 &&
+                      ` · ${product.cookTools.join(" or ")}`}
                     {product.allergens.length > 0 &&
                       ` · contains: ${product.allergens.join(", ")}`}
                   </p>
@@ -183,6 +200,14 @@ export default function BrowsePage() {
                           May contain: {product.mayContain.join(", ")}
                         </p>
                       )}
+                    </details>
+                  )}
+                  {product.cookingInstructions && (
+                    <details>
+                      <summary>Cooking instructions</summary>
+                      <p style={{ whiteSpace: "pre-line" }}>
+                        {product.cookingInstructions}
+                      </p>
                     </details>
                   )}
                   <div className="button-row" style={{ margin: "0.5rem 0 0" }}>
@@ -235,6 +260,34 @@ export default function BrowsePage() {
                 ))}
                 {excluded.length > 50 && (
                   <li className="muted">…and {excluded.length - 50} more.</li>
+                )}
+              </ul>
+            </details>
+          )}
+
+          {equipmentHidden.length > 0 && (
+            <details>
+              <summary>
+                {equipmentHidden.length} meal
+                {equipmentHidden.length === 1 ? "" : "s"} you can&rsquo;t cook
+                with your current equipment
+              </summary>
+              <p className="muted">
+                Update your{" "}
+                <Link href="/preferences?step=equipment">kitchen equipment</Link>{" "}
+                if this isn&rsquo;t right.
+              </p>
+              <ul>
+                {equipmentHidden.slice(0, 50).map((product) => (
+                  <li key={product.id} style={{ marginBottom: "0.4rem" }}>
+                    <strong>{product.name}</strong> —{" "}
+                    {equipmentReason(product, prefs)}.
+                  </li>
+                ))}
+                {equipmentHidden.length > 50 && (
+                  <li className="muted">
+                    …and {equipmentHidden.length - 50} more.
+                  </li>
                 )}
               </ul>
             </details>

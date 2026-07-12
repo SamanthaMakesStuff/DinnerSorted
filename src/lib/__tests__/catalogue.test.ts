@@ -1,10 +1,13 @@
 import { describe, expect, it } from "vitest";
 import {
   effortFromCookMinutes,
+  equipmentReason,
   pricePerPortion,
+  productCookable,
   productToSafeMeal,
   type CatalogueProduct,
 } from "../catalogue";
+import { defaultPreferences } from "../defaults";
 import { generateWeekPlan, resolvePlanMeal } from "../generation";
 import { defaultUserData } from "../defaults";
 import type { SafeMeal, UserData } from "../types";
@@ -21,6 +24,8 @@ const product = (patch: Partial<CatalogueProduct> = {}): CatalogueProduct => ({
   allergens: ["Milk"],
   mayContain: ["Mustard"],
   cookMinutes: 4,
+  cookingInstructions: "Microwave 900W for 5 mins. Or oven 25 mins.",
+  cookTools: ["Microwave", "Oven"],
   dietFlags: [],
   category: "Ready meals",
   imageUrl: "",
@@ -67,6 +72,31 @@ describe("catalogue conversion", () => {
     expect(meal.traceAllergens).toEqual(["Mustard"]);
     expect(meal.isNew).toBe(true);
     expect(meal.estCost).toBe(3.85);
+  });
+});
+
+describe("productCookable (any-of equipment)", () => {
+  it("is cookable when the user has ANY listed tool", () => {
+    const prefs = defaultPreferences();
+    prefs.equipment = ["Microwave"]; // meal lists Microwave OR Oven
+    expect(productCookable(product(), prefs)).toBe(true);
+    expect(equipmentReason(product(), prefs)).toBeNull();
+  });
+
+  it("is NOT cookable when the user has none of the tools", () => {
+    const prefs = defaultPreferences();
+    prefs.equipment = ["Kettle", "Toaster"];
+    const p = product({ cookTools: ["Microwave", "Oven"] });
+    expect(productCookable(p, prefs)).toBe(false);
+    expect(equipmentReason(p, prefs)).toMatch(/Microwave or Oven/);
+  });
+
+  it("never blocks when tools are unknown or user hasn't listed equipment", () => {
+    const prefs = defaultPreferences();
+    prefs.equipment = [];
+    expect(productCookable(product(), prefs)).toBe(true);
+    prefs.equipment = ["Kettle"];
+    expect(productCookable(product({ cookTools: [] }), prefs)).toBe(true);
   });
 });
 

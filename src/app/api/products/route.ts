@@ -36,6 +36,8 @@ export async function GET(request: Request) {
       allergens: products.allergens,
       mayContain: products.mayContain,
       cookMinutes: products.cookMinutes,
+      cookingInstructions: products.cookingInstructions,
+      cookTools: products.cookTools,
       dietFlags: products.dietFlags,
       category: products.category,
       imageUrl: products.imageUrl,

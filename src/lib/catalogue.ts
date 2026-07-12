@@ -4,7 +4,7 @@
  * (buildMealPool — medical exclusions, sensory rules, budget) applies to
  * catalogue meals exactly as it does to the user's own.
  */
-import type { SafeMeal, EnergyLevel } from "./types";
+import type { SafeMeal, EnergyLevel, Preferences } from "./types";
 
 export interface CatalogueProduct {
   id: string;
@@ -18,9 +18,36 @@ export interface CatalogueProduct {
   allergens: string[];
   mayContain: string[];
   cookMinutes: number | null;
+  cookingInstructions: string;
+  /** Kitchen tools mentioned in the instructions — any ONE is enough. */
+  cookTools: string[];
   dietFlags: string[];
   category: string;
   imageUrl: string;
+}
+
+/**
+ * Can the user cook this with the equipment they have? Ready-meal cooking
+ * tools are ALTERNATIVES (microwave OR oven), so having any one is enough.
+ * Unknown tools, or a user who hasn't listed equipment, never blocks.
+ */
+export function productCookable(
+  p: Pick<CatalogueProduct, "cookTools">,
+  prefs: Pick<Preferences, "equipment">
+): boolean {
+  if (!p.cookTools || p.cookTools.length === 0) return true;
+  if (!prefs.equipment || prefs.equipment.length === 0) return true;
+  const have = new Set(prefs.equipment.map((e) => e.toLowerCase()));
+  return p.cookTools.some((t) => have.has(t.toLowerCase()));
+}
+
+/** Plain-language reason a product is hidden for equipment, or null. */
+export function equipmentReason(
+  p: Pick<CatalogueProduct, "cookTools">,
+  prefs: Pick<Preferences, "equipment">
+): string | null {
+  if (productCookable(p, prefs)) return null;
+  return `needs one of: ${p.cookTools.join(" or ")} — you haven't listed any of these in your kitchen equipment`;
 }
 
 /** Ready-meal effort from cooking time: microwave-quick = a bad-day meal. */
@@ -52,11 +79,13 @@ export function productToSafeMeal(
     name: p.name,
     notes: `${p.supermarket} ready meal${p.sizeText ? `, ${p.sizeText}` : ""}${
       p.cookMinutes != null ? ` · about ${p.cookMinutes} min` : ""
-    }`,
+    }${p.cookTools.length > 0 ? ` · ${p.cookTools.join(" or ")}` : ""}`,
     effort: effortFromCookMinutes(p.cookMinutes),
     steps: 1,
     pans: 0,
-    equipment: [], // heat-at-home; equipment needs are minimal and vary
+    // Cookability is enforced separately as "any one of these tools" via
+    // productCookable(); leaving equipment empty avoids the all-of exclusion.
+    equipment: [],
     temperature: "hot",
     tags: [],
     ingredients: [],

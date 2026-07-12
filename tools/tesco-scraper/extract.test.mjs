@@ -3,6 +3,8 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import {
+  detectCookingTools,
+  extractCookingInstructions,
   extractIngredients,
   extractPortions,
   extractProductFromHtml,
@@ -41,6 +43,14 @@ describe("extractProductFromHtml", () => {
     expect(p.portions).toBe(1);
     expect(p.sizeText).toBe("450g");
     expect(p.cookMinutes).toBe(4); // microwave preferred over 25-min oven
+  });
+
+  it("captures cooking instructions and detects the tools used", () => {
+    expect(p.cookingInstructions).toMatch(/Microwave 900W/);
+    expect(p.cookingInstructions).toMatch(/Oven from chilled/);
+    expect(p.cookTools).toContain("Microwave");
+    expect(p.cookTools).toContain("Oven");
+    expect(p.cookTools).not.toContain("Air fryer");
   });
 
   it("returns null for a non-product page", () => {
@@ -100,6 +110,37 @@ describe("extractPortions", () => {
   });
   it("returns null when there's no serving info", () => {
     expect(extractPortions("Keep refrigerated. Use by date on pack.")).toBeNull();
+  });
+});
+
+describe("detectCookingTools", () => {
+  it("detects microwave and oven from typical instructions", () => {
+    const tools = detectCookingTools(
+      "Microwave 900W: heat for 4 mins. Oven: 190°C for 25 mins."
+    );
+    expect(tools).toEqual(["Microwave", "Oven"]);
+  });
+  it("detects hob and grill", () => {
+    expect(detectCookingTools("Empty into a saucepan on the hob")).toContain("Hob");
+    expect(detectCookingTools("Place under a preheated grill")).toContain("Grill");
+  });
+  it("detects air fryer", () => {
+    expect(detectCookingTools("Air fry at 200°C for 12 minutes")).toContain(
+      "Air fryer"
+    );
+  });
+  it("returns nothing for text with no method", () => {
+    expect(detectCookingTools("Keep refrigerated. Serve cold.")).toEqual([]);
+  });
+});
+
+describe("extractCookingInstructions", () => {
+  it("captures the preparation section only", () => {
+    const text =
+      "Ingredients\n Chicken, rice.\nCooking Instructions\n Microwave 900W for 5 mins.\nStorage\n Keep refrigerated.";
+    const out = extractCookingInstructions(text);
+    expect(out).toMatch(/Microwave 900W/);
+    expect(out).not.toMatch(/Keep refrigerated/);
   });
 });
 

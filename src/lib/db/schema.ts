@@ -43,6 +43,9 @@ export const products = pgTable("products", {
   allergens: jsonb("allergens").$type<string[]>().default([]).notNull(),
   mayContain: jsonb("may_contain").$type<string[]>().default([]).notNull(),
   cookMinutes: integer("cook_minutes"),
+  cookingInstructions: text("cooking_instructions").default("").notNull(),
+  /** Kitchen tools mentioned in the instructions (any one suffices). */
+  cookTools: jsonb("cook_tools").$type<string[]>().default([]).notNull(),
   dietFlags: jsonb("diet_flags").$type<string[]>().default([]).notNull(),
   category: text("category").default("").notNull(),
   imageUrl: text("image_url").default("").notNull(),

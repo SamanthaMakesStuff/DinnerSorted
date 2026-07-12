@@ -91,13 +91,15 @@ async function upsertProduct(sql, p) {
   await sql`
     insert into products (
       id, supermarket, url, name, price_pence, size_text, portions,
-      ingredients_text, allergens, may_contain, cook_minutes, diet_flags,
+      ingredients_text, allergens, may_contain, cook_minutes,
+      cooking_instructions, cook_tools, diet_flags,
       category, image_url, available, first_seen_at, last_seen_at
     ) values (
       ${p.id}, ${p.supermarket}, ${p.url}, ${p.name}, ${p.pricePence},
       ${p.sizeText}, ${p.portions}, ${p.ingredientsText},
       ${sql.json(p.allergens)}, ${sql.json(p.mayContain)},
-      ${p.cookMinutes}, ${sql.json(p.dietFlags)}, ${p.category},
+      ${p.cookMinutes}, ${p.cookingInstructions ?? ""},
+      ${sql.json(p.cookTools ?? [])}, ${sql.json(p.dietFlags)}, ${p.category},
       ${p.imageUrl}, true, now(), now()
     )
     on conflict (url) do update set
@@ -109,6 +111,8 @@ async function upsertProduct(sql, p) {
       allergens = excluded.allergens,
       may_contain = excluded.may_contain,
       cook_minutes = excluded.cook_minutes,
+      cooking_instructions = excluded.cooking_instructions,
+      cook_tools = excluded.cook_tools,
       diet_flags = excluded.diet_flags,
       category = excluded.category,
       image_url = excluded.image_url,

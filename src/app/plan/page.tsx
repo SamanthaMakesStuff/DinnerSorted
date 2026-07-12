@@ -9,7 +9,11 @@ import {
   reasonLabel,
   resolvePlanMeal,
 } from "@/lib/generation";
-import { productToSafeMeal, type CatalogueProduct } from "@/lib/catalogue";
+import {
+  productCookable,
+  productToSafeMeal,
+  type CatalogueProduct,
+} from "@/lib/catalogue";
 import { DAY_LABELS, MAX_PLAN_HISTORY, type SafeMeal } from "@/lib/types";
 import { EmergencyMeals } from "@/components/EmergencyMeals";
 
@@ -17,7 +21,7 @@ export default function PlanPage() {
   const { data, update, ready } = useStore();
   const [showAnyway, setShowAnyway] = useState(false);
   const [status, setStatus] = useState("");
-  const [catalogue, setCatalogue] = useState<SafeMeal[]>([]);
+  const [products, setProducts] = useState<CatalogueProduct[]>([]);
 
   // Supermarket catalogue feeds the occasional new-food suggestion (only
   // used when the user has opted in). Absence is fine — starter library
@@ -27,12 +31,7 @@ export default function PlanPage() {
     fetch("/api/products?limit=200")
       .then((res) => (res.ok ? res.json() : { products: [] }))
       .then((body) => {
-        if (cancelled) return;
-        setCatalogue(
-          (body.products ?? []).map((p: CatalogueProduct) =>
-            productToSafeMeal(p, { isNew: true })
-          )
-        );
+        if (!cancelled) setProducts(body.products ?? []);
       })
       .catch(() => {
         /* catalogue unavailable — suggestions fall back to starters */
@@ -43,6 +42,12 @@ export default function PlanPage() {
   }, []);
 
   if (!ready) return <p aria-live="polite">Loading your data…</p>;
+
+  // Only suggest catalogue meals the user can actually cook (any-of tools),
+  // recomputed from current preferences so equipment edits take effect.
+  const catalogue: SafeMeal[] = products
+    .filter((p) => productCookable(p, data.preferences))
+    .map((p) => productToSafeMeal(p, { isNew: true }));
 
   const plan = data.planHistory[0] ?? null;
   const pool = buildMealPool(data.preferences, data.safeMeals, {

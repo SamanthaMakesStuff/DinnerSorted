@@ -202,6 +202,61 @@ export function extractMayContain(text) {
   return m ? mapTextToAllergens(m[0]) : [];
 }
 
+/** The cooking-instructions / preparation section, if present. */
+export function extractCookingInstructions(text) {
+  return sectionAfter(
+    text,
+    [
+      "cooking instructions",
+      "preparation and usage",
+      "preparation & usage",
+      "instructions",
+      "how to cook",
+      "how to prepare",
+    ],
+    [
+      "storage",
+      "allergy information",
+      "allergy advice",
+      "nutrition",
+      "manufacturer",
+      "recycling",
+      "net contents",
+      "return to",
+      "warnings",
+      "number of uses",
+      "produce of",
+      "ingredients",
+    ]
+  ).slice(0, 2000);
+}
+
+/**
+ * Maps the app's kitchen-equipment list onto keywords found in cooking
+ * instructions. Ready meals typically list several ALTERNATIVE methods
+ * (microwave or oven); this returns all it can find, and the app treats
+ * them as "any one of these will do".
+ */
+const COOK_TOOL_KEYWORDS = [
+  ["Microwave", /microwave|\b\d{3}\s*w\b/i],
+  ["Oven", /\boven\b|gas mark|gas\s*\d|fan\s*\d{2,}|\d{2,}\s*°?c\b/i],
+  ["Hob", /\bhob\b|saucepan|frying pan|fry pan|stir[- ]?fry|on the hob/i],
+  ["Air fryer", /air[- ]?fry/i],
+  ["Grill", /\bgrill\b/i],
+  ["Kettle", /\bkettle\b|boiling water|pour(?:ing)? boiling/i],
+  ["Toaster", /\btoaster\b/i],
+  ["Slow cooker", /slow[- ]?cooker/i],
+  ["Blender", /\bblender\b|\bblend\b/i],
+];
+
+export function detectCookingTools(instructionsText) {
+  const found = [];
+  for (const [tool, pattern] of COOK_TOOL_KEYWORDS) {
+    if (pattern.test(instructionsText)) found.push(tool);
+  }
+  return found;
+}
+
 export function extractDietFlags(text) {
   const flags = [];
   if (/suitable for vegetarians|vegetarian society/i.test(text)) flags.push("vegetarian");
@@ -229,7 +284,7 @@ export function extractProductFromHtml(html, url, categoryLabel = "") {
   }
 
   const ingredientsText = extractIngredients(text);
-  const allergenSource = ingredientsText || text.slice(0, 6000);
+  const cookingInstructions = extractCookingInstructions(text);
 
   return {
     id: `tesco:${externalId}`,
@@ -243,6 +298,10 @@ export function extractProductFromHtml(html, url, categoryLabel = "") {
     allergens: ingredientsText ? mapTextToAllergens(ingredientsText) : [],
     mayContain: extractMayContain(text),
     cookMinutes: extractCookMinutes(text),
+    cookingInstructions,
+    // Detected against the instructions first; fall back to the whole page
+    // so a method mentioned outside the section is still caught.
+    cookTools: detectCookingTools(cookingInstructions || text.slice(0, 6000)),
     dietFlags: extractDietFlags(text),
     category: categoryLabel,
     imageUrl: (Array.isArray(ld?.image) ? ld.image[0] : ld?.image ?? "")
