@@ -15,8 +15,8 @@ export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const q = (searchParams.get("q") ?? "").trim().slice(0, 100);
   const limit = Math.min(
-    Math.max(parseInt(searchParams.get("limit") ?? "500", 10) || 500, 1),
-    500
+    Math.max(parseInt(searchParams.get("limit") ?? "1000", 10) || 1000, 1),
+    1000
   );
 
   const db = getDb();

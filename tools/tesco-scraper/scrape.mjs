@@ -32,6 +32,15 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const config = JSON.parse(
   fs.readFileSync(path.join(__dirname, "config.json"), "utf8")
 );
+// Categories to crawl: new shape is categories: [{url, label}]; the old
+// categoryUrls + categoryLabel shape still works.
+const CATEGORIES =
+  config.categories ??
+  (config.categoryUrls ?? []).map((url) => ({
+    url,
+    label: config.categoryLabel ?? "",
+  }));
+const PER_CATEGORY_CAP = config.maxProductsPerCategory ?? config.maxProducts ?? 400;
 
 const args = process.argv.slice(2);
 const flag = (name) => args.includes(name);
@@ -141,7 +150,7 @@ async function main() {
         html.match(/rel=["']canonical["'][^>]*href=["']([^"']+)["']/i)?.[1] ??
         html.match(/href=["']([^"']+)["'][^>]*rel=["']canonical["']/i)?.[1] ??
         `https://www.tesco.com/groceries/en-GB/products/${f.replace(/\D/g, "") || "0"}`;
-      const p = extractProductFromHtml(html, canonical, config.categoryLabel);
+      const p = extractProductFromHtml(html, canonical, CATEGORIES[0]?.label ?? "");
       if (p) {
         products.push(p);
         console.log(`  parsed: ${p.name} (£${((p.pricePence ?? 0) / 100).toFixed(2)})`);
@@ -200,10 +209,13 @@ async function main() {
     }
     await sleep(1500);
 
-    // 1) Collect product links from the category pages.
-    const links = new Set();
+    // 1) Collect product links from the category pages, remembering which
+    //    category each product came from.
+    const linkLabels = new Map(); // product url -> category label
     let aborted = false;
-    for (const categoryUrl of config.categoryUrls) {
+    for (const { url: categoryUrl, label } of CATEGORIES) {
+      let categoryCount = 0;
+      console.log(`\n=== ${label} ===`);
       for (let pageNo = 1; pageNo <= config.maxCategoryPages; pageNo++) {
         const url =
           pageNo === 1 ? categoryUrl : `${categoryUrl}?page=${pageNo}`;
@@ -252,31 +264,41 @@ async function main() {
           /* handled by zero-link diagnostics below */
         }
         await sleep(1500);
-        const before = links.size;
+        const before = linkLabels.size;
         const html = await page.content();
-        for (const l of extractProductLinks(html)) links.add(l);
-        console.log(`  products so far: ${links.size}`);
-        if (links.size === 0 && pageNo === 1) {
+        for (const l of extractProductLinks(html)) {
+          if (!linkLabels.has(l)) {
+            linkLabels.set(l, label);
+            categoryCount++;
+          }
+        }
+        console.log(`  ${label}: ${categoryCount} products so far`);
+        if (categoryCount === 0 && pageNo === 1) {
           const debugPath = path.join(__dirname, "debug-category.html");
           fs.writeFileSync(debugPath, html);
           const title = await page.title();
           console.warn(
-            `  no product links found. Page title was: "${title}".\n` +
-              `  Saved the page to ${debugPath} — share it for extractor tuning.`
+            `  no product links found for "${label}". Page title was: "${title}".\n` +
+              `  Check the category URL in config.json (copy it from your\n` +
+              `  browser's address bar). Saved the page to ${debugPath}.`
           );
         }
-        if (links.size === before) break; // no new products → past last page
-        if (links.size >= (LIMIT ?? config.maxProducts)) break;
+        if (linkLabels.size === before) break; // no new products → past last page
+        if (categoryCount >= PER_CATEGORY_CAP) break;
+        if (LIMIT && linkLabels.size >= LIMIT) break;
         await politeDelay();
       }
-      if (aborted || links.size >= (LIMIT ?? config.maxProducts)) break;
+      if (aborted || (LIMIT && linkLabels.size >= LIMIT)) break;
     }
 
     // 2) Incremental mode: products scraped within refreshDays don't need
     //    their pages re-visited — the listing already proves they're still
     //    stocked, so just bump their availability. Weekly runs then only
     //    visit new or stale products. --full forces visiting everything.
-    let productLinks = [...links].slice(0, LIMIT ?? config.maxProducts);
+    let productLinks = [...linkLabels.keys()].slice(
+      0,
+      LIMIT ?? CATEGORIES.length * PER_CATEGORY_CAP
+    );
     if (!DRY_RUN && !FULL) {
       const dbUrl = loadDatabaseUrl();
       if (dbUrl) {
@@ -328,7 +350,7 @@ async function main() {
         const p = extractProductFromHtml(
           await page.content(),
           url,
-          config.categoryLabel
+          linkLabels.get(url) ?? ""
         );
         done++;
         if (p) {

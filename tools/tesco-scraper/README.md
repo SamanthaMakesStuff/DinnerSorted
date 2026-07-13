@@ -128,8 +128,31 @@ scraping at all:
 The rest of the app (browse page, catalogue-based suggestions) works
 identically whichever source fills the `products` table.
 
-## Changing scope
+## Adding more categories (pizzas, frozen meals…)
 
-Edit `config.json` — `categoryUrls` is a list, so adding more Tesco
-categories (pizzas, frozen meals…) is one line each. `maxProducts` caps a
-run. If the ready-meals URL changes, paste the new one from your browser.
+Categories live in `config.json` as a list of `{ url, label }` entries:
+
+1. In your normal browser, go to tesco.com and browse to the category you
+   want (e.g. Frozen Food → Frozen Ready Meals, or Fresh Food → Pizza &
+   Garlic Bread).
+2. Copy the URL from the address bar. It should look like
+   `https://www.tesco.com/shop/en-GB/browse/…/all` — if it doesn't end in
+   `/all`, click "View all" in the category first.
+3. Add an entry to `categories` in `config.json`:
+
+```json
+"categories": [
+  { "url": "https://www.tesco.com/shop/en-GB/browse/fresh-food/ready-meals/all", "label": "Ready meals" },
+  { "url": "<paste the pizza category URL here>", "label": "Pizza" },
+  { "url": "<paste the frozen meals category URL here>", "label": "Frozen meals" }
+]
+```
+
+4. Run `node scrape.mjs --limit 5 --dry-run` once to sanity-check the new
+   URLs parse, then `npm run scrape` for the real thing.
+
+The `label` is what shows as the product's category in the app.
+`maxProductsPerCategory` (default 400) caps each category separately.
+Products already scraped stay incremental — adding a category only visits
+the new category's pages. If a URL is wrong, that category logs "no product
+links found" and the run carries on with the others.
