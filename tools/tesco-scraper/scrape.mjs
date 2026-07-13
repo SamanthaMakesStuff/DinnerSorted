@@ -34,13 +34,24 @@ const config = JSON.parse(
 );
 // Categories to crawl: new shape is categories: [{url, label}]; the old
 // categoryUrls + categoryLabel shape still works.
-const CATEGORIES =
+const CATEGORIES = (
   config.categories ??
   (config.categoryUrls ?? []).map((url) => ({
     url,
     label: config.categoryLabel ?? "",
-  }));
+  }))
+).filter((c) => {
+  const ok = typeof c?.url === "string" && c.url.startsWith("http");
+  if (!ok) console.warn(`config: skipping category with missing/invalid url: ${JSON.stringify(c)}`);
+  return ok;
+});
+// Every tuning knob has a default so a hand-edited config that only lists
+// categories still works.
 const PER_CATEGORY_CAP = config.maxProductsPerCategory ?? config.maxProducts ?? 400;
+const MAX_CATEGORY_PAGES = config.maxCategoryPages ?? 15;
+const MIN_DELAY = config.minDelayMs ?? 2500;
+const MAX_DELAY = config.maxDelayMs ?? 6000;
+const REFRESH_DAYS = config.refreshDays ?? 14;
 
 const args = process.argv.slice(2);
 const flag = (name) => args.includes(name);
@@ -70,9 +81,7 @@ function loadDatabaseUrl() {
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const politeDelay = () =>
-  sleep(
-    config.minDelayMs + Math.random() * (config.maxDelayMs - config.minDelayMs)
-  );
+  sleep(MIN_DELAY + Math.random() * (MAX_DELAY - MIN_DELAY));
 
 /** Pause the run and wait for the user to press Enter in the terminal. */
 function waitForEnter(message) {
@@ -136,6 +145,9 @@ async function upsertProduct(sql, p) {
 async function main() {
   const products = [];
   const runStart = new Date();
+  // Set only when category listings were actually read this run — the
+  // availability sweep must never trust a run that saw nothing.
+  let sawListings = false;
 
   if (FIXTURES) {
     // Offline mode: every .html file in the folder is treated as a saved
@@ -216,7 +228,7 @@ async function main() {
     for (const { url: categoryUrl, label } of CATEGORIES) {
       let categoryCount = 0;
       console.log(`\n=== ${label} ===`);
-      for (let pageNo = 1; pageNo <= config.maxCategoryPages; pageNo++) {
+      for (let pageNo = 1; pageNo <= MAX_CATEGORY_PAGES; pageNo++) {
         const url =
           pageNo === 1 ? categoryUrl : `${categoryUrl}?page=${pageNo}`;
         console.log(`category: ${url}`);
@@ -290,6 +302,9 @@ async function main() {
       }
       if (aborted || (LIMIT && linkLabels.size >= LIMIT)) break;
     }
+    // Only a run that read real listings (and wasn't cut short by a block)
+    // is allowed to declare unseen products unavailable.
+    sawListings = linkLabels.size > 0 && !aborted;
 
     // 2) Incremental mode: products scraped within refreshDays don't need
     //    their pages re-visited — the listing already proves they're still
@@ -313,7 +328,7 @@ async function main() {
           const { visit, refreshOnly } = splitByFreshness(
             productLinks,
             existing,
-            config.refreshDays ?? 14
+            REFRESH_DAYS
           );
           for (let i = 0; i < refreshOnly.length; i += 100) {
             const chunk = refreshOnly.slice(i, i + 100);
@@ -325,7 +340,7 @@ async function main() {
           if (refreshOnly.length > 0) {
             console.log(
               `\n${refreshOnly.length} products scraped within the last ` +
-                `${config.refreshDays ?? 14} days — availability refreshed ` +
+                `${REFRESH_DAYS} days — availability refreshed ` +
                 `without visiting (use --full to force re-visits)`
             );
           }
@@ -389,14 +404,20 @@ async function main() {
     for (const p of products) await upsertProduct(sql, p);
     console.log(`saved ${products.length} products to the database`);
 
-    // A FULL run (no --limit, no fixtures) is the source of truth for
-    // availability: anything not seen this run has left the shelves.
-    if (!LIMIT && !FIXTURES) {
+    // A FULL run (no --limit, no fixtures) that actually read listings is
+    // the source of truth for availability: anything not seen this run has
+    // left the shelves. A run that saw nothing (blocked, bad config, site
+    // change) must never wipe availability.
+    if (!LIMIT && !FIXTURES && sawListings) {
       const gone = await sql`
         update products set available = false
         where supermarket = ${config.supermarket} and last_seen_at < ${runStart}
       `;
       console.log(`marked ${gone.count} previously-seen products unavailable`);
+    } else if (!LIMIT && !FIXTURES) {
+      console.log(
+        "no listings were read this run — leaving product availability untouched"
+      );
     }
   } finally {
     await sql.end();
