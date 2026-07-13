@@ -140,6 +140,31 @@ describe("generateWeekPlan", () => {
     expect(saturday.optionIds.length).toBeGreaterThan(1);
   });
 
+  it("round-robins the default choice — no repeats until the pool is exhausted", () => {
+    // The reported bug: 4 safe meals, every day low energy → the same meal
+    // was chosen all 7 days. The default pick must rotate through the pool.
+    const d = baseData(["A", "B", "C", "D"].map((name) => meal({ name })));
+    for (const day of Object.keys(d.preferences.energyByDay)) {
+      d.preferences.energyByDay[day as keyof typeof d.preferences.energyByDay] =
+        "low";
+    }
+    const { plan } = generateWeekPlan(d);
+    const chosen = plan.slots.map((s) => s.chosenId);
+    expect(new Set(chosen).size).toBe(4); // all four meals appear
+    for (let i = 1; i < chosen.length; i++) {
+      expect(chosen[i]).not.toBe(chosen[i - 1]); // never twice in a row
+    }
+  });
+
+  it("even a two-meal pool alternates rather than repeating one meal", () => {
+    const d = baseData([meal({ name: "A" }), meal({ name: "B" })]);
+    const { plan } = generateWeekPlan(d);
+    const chosen = plan.slots.map((s) => s.chosenId);
+    for (let i = 1; i < chosen.length; i++) {
+      expect(chosen[i]).not.toBe(chosen[i - 1]);
+    }
+  });
+
   it("is deterministic without a surprise seed", () => {
     const d = baseData([
       meal({ name: "A" }),

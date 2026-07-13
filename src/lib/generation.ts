@@ -345,15 +345,16 @@ export function generateWeekPlan(
       }
     }
 
-    // 3) Fill remaining option slots from the pool, spreading meals across
-    //    the week (least-used first) and honouring rotation offset.
+    // 3) Fill the slot from the pool. The DEFAULT choice round-robins
+    //    through the eligible meals so the week varies predictably even
+    //    when only a few meals fit the day's energy level; the remaining
+    //    option slots are filled with the least-offered alternatives.
     const unpinned = candidates.filter((m) => m.fixedDay == null || m.fixedDay === day);
-    const rotated = unpinned.length
-      ? unpinned
-          .slice((rotationOffset + dayIndex) % unpinned.length)
-          .concat(unpinned.slice(0, (rotationOffset + dayIndex) % unpinned.length))
-      : [];
-    const byUsage = [...rotated].sort(
+    if (unpinned.length > 0 && optionIds.length < optionsPerSlot) {
+      const primary = unpinned[(rotationOffset + dayIndex) % unpinned.length];
+      if (!optionIds.includes(primary.id)) optionIds.push(primary.id);
+    }
+    const byUsage = [...unpinned].sort(
       (a, b) => (usage.get(a.id) ?? 0) - (usage.get(b.id) ?? 0)
     );
     for (const m of byUsage) {

@@ -50,8 +50,16 @@ export function equipmentReason(
   return `needs one of: ${p.cookTools.join(" or ")} — you haven't listed any of these in your kitchen equipment`;
 }
 
-/** Ready-meal effort from cooking time: microwave-quick = a bad-day meal. */
-export function effortFromCookMinutes(mins: number | null): EnergyLevel {
+/**
+ * Ready-meal effort from cooking method and time. A microwaveable ready
+ * meal is the canonical zero-effort dinner regardless of the pack's oven
+ * time — waiting isn't effort. Oven-only meals grade by time.
+ */
+export function effortFromCookMinutes(
+  mins: number | null,
+  cookTools: string[] = []
+): EnergyLevel {
+  if (cookTools.some((t) => t.toLowerCase() === "microwave")) return "low";
   if (mins == null) return "low"; // ready meals default to low effort
   if (mins <= 12) return "low";
   if (mins <= 30) return "medium";
@@ -80,7 +88,7 @@ export function productToSafeMeal(
     notes: `${p.supermarket} ready meal${p.sizeText ? `, ${p.sizeText}` : ""}${
       p.cookMinutes != null ? ` · about ${p.cookMinutes} min` : ""
     }${p.cookTools.length > 0 ? ` · ${p.cookTools.join(" or ")}` : ""}`,
-    effort: effortFromCookMinutes(p.cookMinutes),
+    effort: effortFromCookMinutes(p.cookMinutes, p.cookTools),
     steps: 1,
     pans: 0,
     // Cookability is enforced separately as "any one of these tools" via

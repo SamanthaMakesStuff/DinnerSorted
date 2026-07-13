@@ -157,6 +157,21 @@ export default function PlanPage() {
               <strong>Over budget:</strong> {plan.budgetWarning}
             </p>
           )}
+          {(() => {
+            const distinct = new Set(plan.slots.flatMap((s) => s.optionIds)).size;
+            if (distinct === 0 || distinct > 2) return null;
+            return (
+              <p className="notice info">
+                Only {distinct} of your safe meals{" "}
+                {distinct === 1 ? "fits" : "fit"} this week&rsquo;s energy
+                settings, so days repeat. For more variety, add more
+                low-effort meals to your{" "}
+                <Link href="/safe-meals">safe meals</Link> (or edit a
+                meal&rsquo;s effort level if it&rsquo;s easier to make than
+                listed).
+              </p>
+            );
+          })()}
           {plan.estTotal != null && !plan.budgetWarning && (
             <p className="muted">
               Estimated shopping total: £{plan.estTotal.toFixed(2)}

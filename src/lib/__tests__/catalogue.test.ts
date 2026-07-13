@@ -54,11 +54,22 @@ function safeMeal(name: string): SafeMeal {
 }
 
 describe("catalogue conversion", () => {
-  it("maps cook time to effort", () => {
+  it("maps cook time to effort (no microwave route)", () => {
     expect(effortFromCookMinutes(4)).toBe("low");
     expect(effortFromCookMinutes(25)).toBe("medium");
     expect(effortFromCookMinutes(45)).toBe("high");
     expect(effortFromCookMinutes(null)).toBe("low");
+  });
+
+  it("microwaveable meals are always low effort — pack oven time isn't spoons", () => {
+    expect(effortFromCookMinutes(30, ["Microwave", "Oven"])).toBe("low");
+    expect(effortFromCookMinutes(30, ["Oven"])).toBe("medium");
+    expect(
+      productToSafeMeal(
+        product({ cookMinutes: 30, cookTools: ["Microwave", "Oven", "Grill"] }),
+        { isNew: false }
+      ).effort
+    ).toBe("low");
   });
 
   it("computes per-portion price", () => {
@@ -143,7 +154,10 @@ describe("generation with a catalogue", () => {
   it("high-effort catalogue meals are not offered as new-food gambles", () => {
     const d = base();
     const cat = [
-      productToSafeMeal(product({ cookMinutes: 45 }), { isNew: true }),
+      // oven-only and long — genuinely high effort
+      productToSafeMeal(product({ cookMinutes: 45, cookTools: ["Oven"] }), {
+        isNew: true,
+      }),
     ];
     const { plan } = generateWeekPlan(d, { catalogue: cat });
     expect(plan.slots.flatMap((s) => s.optionIds)).not.toContain("cat_tesco:1");
